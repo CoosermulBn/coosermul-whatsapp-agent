@@ -1,0 +1,32 @@
+# Configuración del negocio — Generado por AgentKit
+negocio:
+  nombre: "Coosermul BN Ltda."
+  descripcion: >
+    Cooperativa de Servicios Múltiples de los Trabajadores del Banco de la
+    Nación Ltda. (COOSERMUL BN), constituida el 21 de octubre de 1977 e
+    inscrita en los Registros Públicos de Lima. Organización sin fines de
+    lucro creada por y para los trabajadores del Banco de la Nación (activos,
+    pensionistas, cesantes y terceros afiliados como socios), cuyo objetivo
+    es el desarrollo humano, social y económico de sus socios mediante
+    créditos y servicios en condiciones más justas que el mercado tradicional.
+  horario: "Lunes a Viernes 9:00 a.m. a 6:00 p.m. · Sábados 10:00 a.m. a 2:00 p.m."
+  contacto:
+    telefono_fijo: "01 350 3500"
+    whatsapp: "996 899 924 / 996 899 927"
+    correo: "coosermulbn@gmail.com"
+    direccion: "Av. Arequipa N°2538, Lince, Lima"
+
+agente:
+  nombre: "Soporte Coosermul"
+  tono: "Amigable y casual"
+  casos_de_uso:
+    - "Responder preguntas frecuentes"
+    - "Agendar citas o reservaciones"
+    - "Calificar y atender leads / ventas"
+    - "Tomar pedidos"
+    - "Soporte post-venta"
+    - "Inscripción de nuevos socios y envío de formatos/documentos para la inscripción"
+
+metadata:
+  creado: "2026-08-10"
+  version: "1.0"
