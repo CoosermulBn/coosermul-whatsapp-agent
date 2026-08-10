@@ -102,6 +102,8 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
         logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
         return respuesta
 
-    except Exception as e:
-        logger.error(f"Error Claude API: {e}")
+    except Exception:
+        # logger.exception incluye el traceback completo (archivo/línea exactos),
+        # a diferencia de solo imprimir str(e).
+        logger.exception("Error Claude API")
         return obtener_mensaje_error()

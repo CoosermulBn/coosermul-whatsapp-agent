@@ -6,8 +6,21 @@ Servidor principal del agente de WhatsApp.
 Funciona con cualquier proveedor (Meta, Twilio) gracias a la capa de providers.
 """
 
+import sys
 import os
 import logging
+
+# Algunos contenedores Linux minimalistas arrancan con una configuración
+# regional que no es UTF-8 (por ejemplo, si el locale "C.UTF-8" no está
+# generado en la imagen). Esto hace que cualquier logging o manejo de texto
+# con tildes/emojis falle con "'ascii' codec can't encode characters...".
+# Forzamos UTF-8 aquí en tiempo de ejecución para no depender de la
+# configuración del contenedor/host.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
