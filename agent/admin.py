@@ -84,12 +84,18 @@ SCRIPT_NOTIFICACIONES = """
   var tituloOriginal = document.title;
   var parpadeo = null;
 
-  function activarSonido() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sonidoActivo = true;
-    var btn = document.getElementById('btn-sonido');
-    if (btn) { btn.textContent = '🔔 Notificaciones activadas'; btn.classList.add('activo'); }
-    pitar(); // sonido de confirmacion
+  function activarSonido(porClickDelUsuario) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sonidoActivo = true;
+      localStorage.setItem('coosermul_sonido_activado', '1');
+      var btn = document.getElementById('btn-sonido');
+      if (btn) { btn.textContent = '🔔 Notificaciones activadas'; btn.classList.add('activo'); }
+      if (porClickDelUsuario) pitar(); // sonido de confirmacion solo si fue un click real
+    } catch (e) {
+      // el navegador bloqueo la creacion automatica sin gesto del usuario;
+      // el boton se queda visible para que lo activen con un click
+    }
   }
 
   function pitar() {
@@ -157,9 +163,14 @@ SCRIPT_NOTIFICACIONES = """
 
   document.addEventListener('DOMContentLoaded', function () {
     var btn = document.getElementById('btn-sonido');
-    if (btn) btn.addEventListener('click', activarSonido);
+    if (btn) btn.addEventListener('click', function () { activarSonido(true); });
     if (window.Notification && Notification.permission === 'default') {
       Notification.requestPermission();
+    }
+    // Si el usuario ya activo el sonido antes en este navegador, lo
+    // reactivamos solos al cargar la pagina (sin pedirle otro click).
+    if (localStorage.getItem('coosermul_sonido_activado') === '1') {
+      activarSonido(false);
     }
     revisarPendientes();
     setInterval(revisarPendientes, 8000);
