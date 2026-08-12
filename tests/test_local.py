@@ -61,9 +61,12 @@ async def main():
         # Obtener historial ANTES de guardar (brain.py agrega el mensaje actual)
         historial = await obtener_historial(TELEFONO_TEST)
 
-        # Generar respuesta
+        # Generar respuesta (puede incluir documentos a "enviar")
         print("\nAgente: ", end="", flush=True)
-        respuesta = await generar_respuesta(mensaje, historial)
+        resultado = await generar_respuesta(mensaje, historial)
+        respuesta = resultado["texto"]
+        for doc in resultado.get("documentos", []):
+            print(f"\n  [se enviaria el archivo: {doc['nombre_archivo']}]")
         print(respuesta)
         print()
 

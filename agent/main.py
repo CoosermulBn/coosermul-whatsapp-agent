@@ -121,12 +121,22 @@ async def webhook_handler(request: Request):
             # (brain.py agrega el mensaje actual, evitando duplicados)
             historial = await obtener_historial(msg.telefono)
 
-            # Generar respuesta con Claude
-            respuesta = await generar_respuesta(msg.texto, historial)
+            # Generar respuesta con Claude (puede incluir documentos a enviar)
+            resultado = await generar_respuesta(msg.texto, historial)
+            respuesta = resultado["texto"]
+            documentos = resultado.get("documentos", [])
 
             # Guardar mensaje del usuario Y respuesta del agente en memoria
             await guardar_mensaje(msg.telefono, "user", msg.texto)
             await guardar_mensaje(msg.telefono, "assistant", respuesta)
+
+            # Enviar los documentos primero (si los hay), luego el texto
+            for doc in documentos:
+                enviado = await proveedor.enviar_documento(
+                    msg.telefono, doc["ruta"], doc["nombre_archivo"]
+                )
+                if not enviado:
+                    logger.error(f"No se pudo enviar el documento {doc['nombre_archivo']} a {msg.telefono}")
 
             # Enviar respuesta por WhatsApp via el proveedor
             await proveedor.enviar_mensaje(msg.telefono, respuesta)

@@ -83,6 +83,49 @@ FORMATOS_DESCUENTO = {
     "cts": "10.-Autorización descuento CTS y liquidaciones.pdf",
 }
 
+# Documentos fijos adicionales para el paquete de inscripción (todos los perfiles)
+FORMATOS_INSCRIPCION_COMUNES = [
+    "6.- Declaración Jurada de Direccion.pdf",
+    "8.-FICHA DE INSCRIPCCION FPS.pdf",
+]
+
+# Paquete B: crédito en efectivo — siempre estos 3, sin importar el tipo/monto
+FORMATOS_CREDITO = [
+    "5.-SOLICITUD DE CREDITOS.pdf",
+    "4.-Pagare.pdf",
+    "7.-Contrato de Credito.pdf",
+]
+
+KNOWLEDGE_DIR = "knowledge"
+
+
+def ruta_completa(nombre_archivo: str) -> str:
+    """Retorna la ruta absoluta/relativa de un archivo dentro de /knowledge."""
+    return os.path.join(KNOWLEDGE_DIR, nombre_archivo)
+
+
+def resolver_paquete_credito() -> list[str]:
+    """Retorna los nombres de archivo del paquete de crédito en efectivo (fijo)."""
+    return list(FORMATOS_CREDITO)
+
+
+def resolver_paquete_inscripcion(perfil_socio: str) -> list[str]:
+    """
+    Retorna los nombres de archivo del paquete de inscripción según el
+    perfil del socio ('activo', 'pensionista', 'cesante', 'feban', 'tercero').
+    Retorna lista vacía si el perfil no se reconoce.
+    """
+    perfil = (perfil_socio or "").strip().lower()
+    solicitud = FORMATOS_INSCRIPCION.get(perfil)
+    descuento = FORMATOS_DESCUENTO.get(perfil)
+    if not solicitud:
+        return []
+    archivos = [solicitud]
+    if descuento:
+        archivos.append(descuento)
+    archivos.extend(FORMATOS_INSCRIPCION_COMUNES)
+    return archivos
+
 
 def listar_formatos_disponibles() -> list[str]:
     """Lista los PDFs disponibles en /knowledge (formatos y material informativo)."""

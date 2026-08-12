@@ -89,3 +89,46 @@ class ProveedorMeta(ProveedorWhatsApp):
             if r.status_code != 200:
                 logger.error(f"Error Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
+
+    async def _subir_media(self, ruta_archivo: str) -> str | None:
+        """Sube un archivo local a los servidores de Meta y retorna su media_id."""
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/media"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        try:
+            with open(ruta_archivo, "rb") as f:
+                files = {"file": (os.path.basename(ruta_archivo), f, "application/pdf")}
+                data = {"messaging_product": "whatsapp"}
+                async with httpx.AsyncClient() as client:
+                    r = await client.post(url, headers=headers, data=data, files=files, timeout=60)
+        except FileNotFoundError:
+            logger.error(f"Archivo no encontrado para subir a Meta: {ruta_archivo}")
+            return None
+        if r.status_code != 200:
+            logger.error(f"Error subiendo media a Meta: {r.status_code} — {r.text}")
+            return None
+        return r.json().get("id")
+
+    async def enviar_documento(self, telefono: str, ruta_archivo: str, nombre_archivo: str) -> bool:
+        """Sube un archivo y lo envía como documento por WhatsApp."""
+        if not self.access_token or not self.phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
+            return False
+        media_id = await self._subir_media(ruta_archivo)
+        if not media_id:
+            return False
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono,
+            "type": "document",
+            "document": {"id": media_id, "filename": nombre_archivo},
+        }
+        async with httpx.AsyncClient() as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code != 200:
+                logger.error(f"Error enviando documento via Meta API: {r.status_code} — {r.text}")
+            return r.status_code == 200
