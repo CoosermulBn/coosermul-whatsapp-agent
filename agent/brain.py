@@ -219,7 +219,17 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
 
     system_prompt = cargar_system_prompt()
 
-    mensajes = [{"role": m["role"], "content": m["content"]} for m in historial]
+    # La API de Claude solo acepta los roles "user" y "assistant". Los
+    # mensajes que escribió un humano del equipo (role="humano", guardados
+    # desde el panel /admin) se mapean a "assistant" para que Claude tenga
+    # continuidad de la conversación sin romper la llamada a la API.
+    mensajes = [
+        {
+            "role": "assistant" if m["role"] == "humano" else m["role"],
+            "content": m["content"],
+        }
+        for m in historial
+    ]
     mensajes.append({"role": "user", "content": mensaje})
 
     documentos_totales: list[dict] = []
