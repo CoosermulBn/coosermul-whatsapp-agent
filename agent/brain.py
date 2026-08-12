@@ -61,8 +61,9 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
     Returns:
         La respuesta generada por Claude
     """
-    # Si el mensaje es muy corto o vacío, usar fallback
-    if not mensaje or len(mensaje.strip()) < 2:
+    # Si el mensaje está vacío (pero no si es corto: "1", "sí", "no" son
+    # respuestas válidas, por ejemplo al elegir una opción del menú)
+    if not mensaje or not mensaje.strip():
         return obtener_mensaje_fallback()
 
     system_prompt = cargar_system_prompt()
