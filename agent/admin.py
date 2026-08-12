@@ -10,11 +10,12 @@ WhatsApp del cliente) cuando el bot escala a un humano.
 
 import os
 import html
+import json
 import secrets
 import logging
 import tempfile
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from agent.memory import (
@@ -61,7 +62,110 @@ ESTILO = """
   form.reply button { background:#16a34a; color:#fff; border:none; border-radius:10px; padding:0 18px; height:38px; font-size:14px; cursor:pointer; }
   .btn-liberar { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
   .btn-borrar { background:#dc2626; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  .alerta { display:none; background:#dc2626; color:#fff; border-radius:10px; padding:14px 16px; margin-bottom:16px; font-weight:600; animation:pulso 1.2s infinite; }
+  .alerta a { color:#fff; text-decoration:underline; }
+  @keyframes pulso { 0%,100% { opacity:1; } 50% { opacity:.75; } }
+  .btn-sonido { background:#111827; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; margin-bottom:16px; }
+  .btn-sonido.activo { background:#16a34a; }
 </style>
+"""
+
+# JS para notificación visible + auditiva cuando hay una conversación
+# esperando un humano (modo_humano). Sondea /admin/api/pendientes cada
+# pocos segundos; el sonido se genera con Web Audio API (sin archivos
+# externos) y solo se activa tras un click del usuario, por las políticas
+# de autoplay de los navegadores.
+SCRIPT_NOTIFICACIONES = """
+<script>
+(function () {
+  var yaAvisados = new Set(JSON.parse(localStorage.getItem('coosermul_avisados') || '[]'));
+  var audioCtx = null;
+  var sonidoActivo = false;
+  var tituloOriginal = document.title;
+  var parpadeo = null;
+
+  function activarSonido() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sonidoActivo = true;
+    var btn = document.getElementById('btn-sonido');
+    if (btn) { btn.textContent = '🔔 Notificaciones activadas'; btn.classList.add('activo'); }
+    pitar(); // sonido de confirmacion
+  }
+
+  function pitar() {
+    if (!audioCtx) return;
+    var t = audioCtx.currentTime;
+    [0, 0.28].forEach(function (delay) {
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, t + delay);
+      gain.gain.setValueAtTime(0.0001, t + delay);
+      gain.gain.exponentialRampToValueAtTime(0.3, t + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.25);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t + delay);
+      osc.stop(t + delay + 0.3);
+    });
+  }
+
+  function parpadearTitulo(activar) {
+    if (activar && !parpadeo) {
+      var mostrar = false;
+      parpadeo = setInterval(function () {
+        document.title = mostrar ? tituloOriginal : '🔴 Nueva solicitud';
+        mostrar = !mostrar;
+      }, 1000);
+    } else if (!activar && parpadeo) {
+      clearInterval(parpadeo);
+      parpadeo = null;
+      document.title = tituloOriginal;
+    }
+  }
+
+  function revisarPendientes() {
+    fetch('/admin/api/pendientes').then(function (r) { return r.json(); }).then(function (data) {
+      var pendientes = data.telefonos || [];
+      var nuevos = pendientes.filter(function (t) { return !yaAvisados.has(t); });
+
+      var banner = document.getElementById('alerta-pendientes');
+      if (pendientes.length > 0) {
+        banner.style.display = 'block';
+        banner.innerHTML = '🔔 ' + pendientes.length + ' conversación(es) esperando un asesor: ' +
+          pendientes.map(function (t) { return '<a href="/admin/chat/' + t + '">' + t + '</a>'; }).join(', ');
+        parpadearTitulo(true);
+      } else {
+        banner.style.display = 'none';
+        parpadearTitulo(false);
+      }
+
+      if (nuevos.length > 0 && sonidoActivo) {
+        pitar();
+        if (window.Notification && Notification.permission === 'granted') {
+          new Notification('Coosermul BN — Nueva solicitud', {
+            body: nuevos.join(', ') + ' necesita un asesor.',
+          });
+        }
+      }
+      pendientes.forEach(function (t) { yaAvisados.add(t); });
+      // limpiar los que ya no estan pendientes, para que si vuelven a
+      // escalar mas adelante, se vuelva a avisar
+      yaAvisados = new Set(pendientes);
+      localStorage.setItem('coosermul_avisados', JSON.stringify(Array.from(yaAvisados)));
+    }).catch(function () {});
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('btn-sonido');
+    if (btn) btn.addEventListener('click', activarSonido);
+    if (window.Notification && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    revisarPendientes();
+    setInterval(revisarPendientes, 8000);
+  });
+})();
+</script>
 """
 
 
@@ -109,10 +213,21 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     <body>
       <h1>Conversaciones de WhatsApp</h1>
       <div class="sub">Coosermul BN · Soporte Coosermul</div>
+      <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
+      <div id="alerta-pendientes" class="alerta"></div>
       {filas}
+      {SCRIPT_NOTIFICACIONES}
     </body>
     </html>
     """
+
+
+@router.get("/admin/api/pendientes")
+async def api_pendientes(usuario: str = Depends(_verificar_credenciales)):
+    """Lista los teléfonos que están esperando un asesor humano (modo_humano=True)."""
+    conversaciones = await listar_conversaciones()
+    telefonos = [c["telefono"] for c in conversaciones if c.get("modo_humano")]
+    return JSONResponse({"telefonos": telefonos})
 
 
 @router.get("/admin/chat/{telefono}", response_class=HTMLResponse)
@@ -157,6 +272,8 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
         <a class="back" href="/admin">&larr; Volver a conversaciones</a>
         <div style="display:flex; gap:8px;">{boton_liberar}{boton_borrar}</div>
       </div>
+      <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
+      <div id="alerta-pendientes" class="alerta"></div>
       <h1>{tel_seguro}{badge}</h1>
       {burbujas}
       <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">
@@ -164,6 +281,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
         <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png">
         <button type="submit">Enviar</button>
       </form>
+      {SCRIPT_NOTIFICACIONES}
     </body>
     </html>
     """
