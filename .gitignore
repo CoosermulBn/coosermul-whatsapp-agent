@@ -12,9 +12,10 @@ __pycache__/
 .venv/
 venv/
 
-# Knowledge (archivos privados del negocio)
-knowledge/*
-!knowledge/.gitkeep
+# Knowledge: los PDFs SÍ se suben (el bot necesita leerlos/enviarlos en
+# producción). El repo debe ser PRIVADO. Si agregas archivos realmente
+# sensibles a /knowledge que NO deban subirse a GitHub, exclúyelos aquí
+# por nombre específico.
 
 # Session state
 config/session.yaml
