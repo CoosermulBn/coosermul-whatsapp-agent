@@ -2,6 +2,7 @@
 # Generado por AgentKit
 
 import os
+import json
 import logging
 import httpx
 from fastapi import Request
@@ -33,6 +34,7 @@ class ProveedorMeta(ProveedorWhatsApp):
     async def parsear_webhook(self, request: Request) -> list[MensajeEntrante]:
         """Parsea el payload anidado de Meta Cloud API."""
         body = await request.json()
+        logger.info(f"Webhook payload crudo de Meta: {json.dumps(body, ensure_ascii=False)}")
         mensajes = []
         for entry in body.get("entry", []):
             for change in entry.get("changes", []):
