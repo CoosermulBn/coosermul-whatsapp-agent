@@ -52,6 +52,16 @@ class ProveedorWhatsApp(ABC):
         """
         return None
 
+    async def enviar_plantilla(
+        self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str]
+    ) -> bool:
+        """
+        Envía un mensaje usando una plantilla aprobada (requerido para que el
+        negocio inicie una conversación con alguien que no ha escrito antes,
+        o fuera de la ventana de 24h). Retorna True si fue exitoso.
+        """
+        return False
+
     async def validar_webhook(self, request: Request) -> dict | int | None:
         """Verificación GET del webhook (solo Meta la requiere). Retorna respuesta o None."""
         return None

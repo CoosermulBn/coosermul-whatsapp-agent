@@ -37,6 +37,33 @@ from agent.providers import obtener_proveedor
 # archivo real en el panel sin tener que cambiar el esquema de Mensaje.
 PATRON_ADJUNTO = re.compile(r"^\[\[adjunto:(\d+)\]\]\s*")
 
+# Plantillas de mensaje aprobadas por Meta para iniciar una conversación
+# (obligatorias fuera de la ventana de 24h o con alguien que nunca escribió).
+# El nombre y el idioma deben coincidir exactamente con la plantilla creada
+# en el WhatsApp Manager de Meta.
+PLANTILLAS_DISPONIBLES = {
+    "recordatorio_pago": {
+        "etiqueta": "Recordatorio de pago",
+        "idioma": "es",
+        "variables": ["Nombre del socio", "Monto (S/)", "Fecha de vencimiento"],
+        "vista_previa": (
+            "Hola {{1}}, te recordamos que tienes una cuota pendiente de S/ {{2}} "
+            "con vencimiento el {{3}}. Si ya realizaste el pago, puedes ignorar este "
+            "mensaje. Cualquier consulta, escríbenos por este medio. — Coosermul BN"
+        ),
+    },
+    "tramite_aprobado": {
+        "etiqueta": "Trámite / crédito aprobado",
+        "idioma": "es",
+        "variables": ["Nombre del socio", "Trámite (ej. solicitud de crédito)"],
+        "vista_previa": (
+            "Hola {{1}}, te informamos que tu {{2}} ha sido aprobado(a). Nuestro "
+            "equipo se pondrá en contacto contigo para los siguientes pasos. "
+            "Cualquier consulta, escríbenos por este medio. — Coosermul BN"
+        ),
+    },
+}
+
 logger = logging.getLogger("agentkit")
 router = APIRouter()
 security = HTTPBasic()
@@ -82,6 +109,13 @@ ESTILO = """
   .feed-item:first-child { border-top:none; }
   .feed-item a { color:#2563eb; text-decoration:none; font-weight:600; }
   .feed-item .tipo { color:#888; }
+  .btn-nueva { background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .form-nueva { background:#fff; border-radius:10px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.08); max-width:480px; }
+  .form-nueva label { display:block; margin-bottom:14px; font-size:13px; color:#444; font-weight:600; }
+  .form-nueva input, .form-nueva select { width:100%; margin-top:6px; padding:9px 10px; border-radius:8px; border:1px solid #ddd; font-size:14px; box-sizing:border-box; font-weight:normal; }
+  .form-nueva button { background:#16a34a; color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; cursor:pointer; }
+  .vista-previa { background:#f4f4f6; border-radius:8px; padding:10px 12px; font-size:13px; color:#555; font-style:italic; margin-bottom:10px; }
+  .alerta-info { background:#eff6ff; color:#1e3a8a; border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:13px; }
 </style>
 """
 
@@ -302,8 +336,13 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     <html>
     <head><title>Conversaciones — Coosermul BN</title>{ESTILO}</head>
     <body>
-      <h1>Conversaciones de WhatsApp</h1>
-      <div class="sub">Coosermul BN · Soporte Coosermul</div>
+      <div class="toolbar">
+        <div>
+          <h1>Conversaciones de WhatsApp</h1>
+          <div class="sub">Coosermul BN · Soporte Coosermul</div>
+        </div>
+        <a class="btn-nueva" href="/admin/nueva">+ Nueva conversación</a>
+      </div>
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
       <div id="alerta-pendientes" class="alerta"></div>
       <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
@@ -312,6 +351,109 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     </body>
     </html>
     """
+
+
+@router.get("/admin/nueva", response_class=HTMLResponse)
+async def nueva_conversacion_form(error: str = "", usuario: str = Depends(_verificar_credenciales)):
+    """
+    Formulario para que el equipo inicie una conversación con alguien que
+    nunca escribió (o pasaron más de 24h desde su último mensaje). WhatsApp
+    solo permite esto usando una plantilla previamente aprobada por Meta.
+    """
+    mensaje_error = ""
+    if error == "datos_invalidos":
+        mensaje_error = '<div class="alerta" style="display:block;">Completa el número y elige una plantilla.</div>'
+    elif error == "envio_fallido":
+        mensaje_error = (
+            '<div class="alerta" style="display:block;">No se pudo enviar. Verifica que la '
+            "plantilla ya esté aprobada por Meta y que el número tenga el código de país.</div>"
+        )
+
+    bloques_plantilla = ""
+    for nombre, info in PLANTILLAS_DISPONIBLES.items():
+        campos = ""
+        for var in info["variables"]:
+            campos += f'<label>{html.escape(var)}<input type="text" name="variables" disabled></label>'
+        bloques_plantilla += f"""
+        <div class="bloque-plantilla" data-plantilla="{nombre}" style="display:none;">
+          <div class="vista-previa">{html.escape(info['vista_previa'])}</div>
+          {campos}
+        </div>
+        """
+
+    opciones = "".join(
+        f'<option value="{nombre}">{html.escape(info["etiqueta"])}</option>'
+        for nombre, info in PLANTILLAS_DISPONIBLES.items()
+    )
+
+    return f"""
+    <html>
+    <head><title>Nueva conversación — Coosermul BN</title>{ESTILO}</head>
+    <body>
+      <a class="back" href="/admin">&larr; Volver a conversaciones</a>
+      <h1>Iniciar conversación nueva</h1>
+      <div class="alerta-info">
+        WhatsApp solo permite que el negocio escriba primero usando una plantilla
+        aprobada por Meta. Si la persona ya te escribió antes (dentro de las
+        últimas 24h), no necesitas esto: respóndele directo desde su chat.
+      </div>
+      {mensaje_error}
+      <form method="post" action="/admin/nueva" class="form-nueva">
+        <label>Número de WhatsApp (con código de país, sin +, ej. 51987654321)
+          <input type="text" name="telefono" required pattern="[0-9]+" placeholder="51987654321">
+        </label>
+        <label>Plantilla
+          <select name="plantilla" id="select-plantilla" required>
+            <option value="">-- Selecciona --</option>
+            {opciones}
+          </select>
+        </label>
+        {bloques_plantilla}
+        <button type="submit">Enviar</button>
+      </form>
+      <script>
+        var select = document.getElementById('select-plantilla');
+        var bloques = document.querySelectorAll('.bloque-plantilla');
+        select.addEventListener('change', function () {{
+          bloques.forEach(function (b) {{
+            var activo = b.getAttribute('data-plantilla') === select.value;
+            b.style.display = activo ? 'block' : 'none';
+            b.querySelectorAll('input').forEach(function (inp) {{
+              inp.disabled = !activo;
+              inp.required = activo;
+            }});
+          }});
+        }});
+      </script>
+    </body>
+    </html>
+    """
+
+
+@router.post("/admin/nueva")
+async def nueva_conversacion_enviar(
+    telefono: str = Form(...),
+    plantilla: str = Form(...),
+    variables: list[str] = Form([]),
+    usuario: str = Depends(_verificar_credenciales),
+):
+    """Envía la plantilla elegida para iniciar la conversación con ese número."""
+    telefono = telefono.strip()
+    info = PLANTILLAS_DISPONIBLES.get(plantilla)
+    if not info or not telefono:
+        return RedirectResponse(url="/admin/nueva?error=datos_invalidos", status_code=303)
+
+    proveedor = obtener_proveedor()
+    enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables)
+
+    if not enviado:
+        logger.error(f"No se pudo enviar la plantilla {plantilla} a {telefono}")
+        return RedirectResponse(url="/admin/nueva?error=envio_fallido", status_code=303)
+
+    registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
+    await guardar_mensaje(telefono, "humano", registro)
+    await activar_modo_humano(telefono)
+    return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
 
 
 @router.get("/admin/media/{adjunto_id}")

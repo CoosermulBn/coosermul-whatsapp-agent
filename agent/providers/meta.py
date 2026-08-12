@@ -162,6 +162,44 @@ class ProveedorMeta(ProveedorWhatsApp):
                 logger.error(f"Error enviando documento via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
 
+    async def enviar_plantilla(
+        self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str]
+    ) -> bool:
+        """
+        Envía un mensaje de plantilla aprobada por Meta. Es la única forma de
+        que el negocio inicie una conversación con alguien que nunca ha
+        escrito antes, o cuando ya pasaron más de 24h desde su último mensaje.
+        """
+        if not self.access_token or not self.phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
+            return False
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        componentes = []
+        if parametros:
+            componentes.append({
+                "type": "body",
+                "parameters": [{"type": "text", "text": p} for p in parametros],
+            })
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono,
+            "type": "template",
+            "template": {
+                "name": nombre_plantilla,
+                "language": {"code": idioma},
+                "components": componentes,
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code != 200:
+                logger.error(f"Error enviando plantilla via Meta API: {r.status_code} — {r.text}")
+            return r.status_code == 200
+
     async def descargar_media(self, media_id: str) -> tuple[bytes, str] | None:
         """
         Descarga un archivo recibido de un socio (comprobante de pago, etc.).
