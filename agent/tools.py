@@ -7,11 +7,62 @@ Estas funciones extienden las capacidades del agente más allá de responder tex
 """
 
 import os
+import csv
+import re
 import yaml
 import logging
 from datetime import datetime
 
 logger = logging.getLogger("agentkit")
+
+PADRON_PATH = os.path.join("data", "padron.csv")
+_padron_cache: dict[str, dict] | None = None
+
+
+def _normalizar_dni(dni: str) -> str:
+    return re.sub(r"\D", "", dni or "")
+
+
+def _cargar_padron() -> dict[str, dict]:
+    """Carga el padrón de socios en memoria (dni -> datos), una sola vez."""
+    global _padron_cache
+    if _padron_cache is not None:
+        return _padron_cache
+    padron = {}
+    try:
+        with open(PADRON_PATH, "r", encoding="utf-8", newline="") as f:
+            for fila in csv.DictReader(f):
+                dni = _normalizar_dni(fila.get("dni", ""))
+                if dni:
+                    padron[dni] = fila
+    except FileNotFoundError:
+        logger.error(f"No se encontró el padrón de socios en {PADRON_PATH}")
+    _padron_cache = padron
+    logger.info(f"Padron de socios cargado: {len(padron)} registros")
+    return padron
+
+
+def verificar_socio(dni: str) -> dict:
+    """
+    Busca un DNI en el padrón de socios.
+
+    Returns:
+        Si es socio: {"es_socio": True, "apellido_paterno": ..., "apellido_materno": ...,
+                       "nombres": ..., "codigo": ...}
+        Si no: {"es_socio": False}
+    """
+    padron = _cargar_padron()
+    dni_normalizado = _normalizar_dni(dni)
+    registro = padron.get(dni_normalizado)
+    if not registro:
+        return {"es_socio": False}
+    return {
+        "es_socio": True,
+        "apellido_paterno": (registro.get("apellido_paterno") or "").strip().title(),
+        "apellido_materno": (registro.get("apellido_materno") or "").strip().title(),
+        "nombres": (registro.get("nombres") or "").strip().title(),
+        "codigo": (registro.get("codigo") or "").strip(),
+    }
 
 
 def cargar_info_negocio() -> dict:

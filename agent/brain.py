@@ -16,7 +16,7 @@ import logging
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
-from agent.tools import resolver_paquete_credito, resolver_paquete_inscripcion, ruta_completa
+from agent.tools import resolver_paquete_credito, resolver_paquete_inscripcion, ruta_completa, verificar_socio
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
@@ -32,6 +32,24 @@ MODELO = "claude-sonnet-5"
 # QUÉ paquete o perfil, y nuestro código (agent/tools.py) resuelve los
 # archivos exactos a enviar.
 HERRAMIENTAS = [
+    {
+        "name": "verificar_socio",
+        "description": (
+            "Busca un DNI en el padrón oficial de socios de Coosermul BN "
+            "para saber si la persona ya es socia. Úsala apenas el usuario "
+            "te dé su número de DNI al inicio de la conversación (o en "
+            "cualquier momento que lo comparta para verificar su condición "
+            "de socio). Retorna si es socio y, si lo es, su apellido "
+            "paterno, materno, nombres y código."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dni": {"type": "string", "description": "Número de DNI (8 dígitos)"}
+            },
+            "required": ["dni"],
+        },
+    },
     {
         "name": "enviar_paquete_credito",
         "description": (
@@ -130,6 +148,18 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
     Returns:
         {"resultado_texto": str, "documentos": [...], "escalar": bool, "motivo": str}
     """
+    if nombre == "verificar_socio":
+        resultado = verificar_socio(entrada.get("dni", ""))
+        if resultado.get("es_socio"):
+            texto = (
+                f"ES SOCIO. Apellido paterno: {resultado['apellido_paterno']}. "
+                f"Apellido materno: {resultado['apellido_materno']}. "
+                f"Nombres: {resultado['nombres']}. Código: {resultado['codigo']}."
+            )
+        else:
+            texto = "NO ES SOCIO. Ese DNI no aparece en el padrón de socios."
+        return {"resultado_texto": texto, "documentos": [], "escalar": False}
+
     if nombre == "enviar_paquete_credito":
         archivos = resolver_paquete_credito()
         if not archivos:
