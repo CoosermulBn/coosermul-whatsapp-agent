@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, Boolean, select, Integer, func
+from sqlalchemy import String, Text, DateTime, Boolean, LargeBinary, select, Integer, func
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -52,6 +52,18 @@ class EstadoConversacion(Base):
     telefono: Mapped[str] = mapped_column(String(50), primary_key=True)
     modo_humano: Mapped[bool] = mapped_column(Boolean, default=False)
     actualizado: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Adjunto(Base):
+    """Archivo (imagen/documento) recibido de un socio por WhatsApp — ej. comprobantes de pago."""
+    __tablename__ = "adjuntos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telefono: Mapped[str] = mapped_column(String(50), index=True)
+    nombre_archivo: Mapped[str] = mapped_column(String(255))
+    mime_type: Mapped[str] = mapped_column(String(100))
+    contenido: Mapped[bytes] = mapped_column(LargeBinary)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 async def inicializar_db():
@@ -188,6 +200,36 @@ async def esta_en_modo_humano(telefono: str) -> bool:
     async with async_session() as session:
         estado = await session.get(EstadoConversacion, telefono)
         return bool(estado and estado.modo_humano)
+
+
+async def guardar_adjunto(telefono: str, nombre_archivo: str, mime_type: str, contenido: bytes) -> int:
+    """Guarda un archivo recibido (imagen/documento) y retorna su ID."""
+    async with async_session() as session:
+        adjunto = Adjunto(
+            telefono=telefono,
+            nombre_archivo=nombre_archivo,
+            mime_type=mime_type,
+            contenido=contenido,
+            timestamp=datetime.utcnow(),
+        )
+        session.add(adjunto)
+        await session.commit()
+        await session.refresh(adjunto)
+        return adjunto.id
+
+
+async def obtener_adjunto(adjunto_id: int) -> dict | None:
+    """Recupera un archivo guardado por su ID."""
+    async with async_session() as session:
+        adjunto = await session.get(Adjunto, adjunto_id)
+        if not adjunto:
+            return None
+        return {
+            "telefono": adjunto.telefono,
+            "nombre_archivo": adjunto.nombre_archivo,
+            "mime_type": adjunto.mime_type,
+            "contenido": adjunto.contenido,
+        }
 
 
 async def limpiar_historial(telefono: str):

@@ -9,13 +9,14 @@ WhatsApp del cliente) cuando el bot escala a un humano.
 """
 
 import os
+import re
 import html
 import json
 import secrets
 import logging
 import tempfile
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from agent.memory import (
@@ -26,8 +27,14 @@ from agent.memory import (
     desactivar_modo_humano,
     esta_en_modo_humano,
     limpiar_historial,
+    obtener_adjunto,
 )
 from agent.providers import obtener_proveedor
+
+# Los mensajes de adjuntos recibidos se guardan con una etiqueta al inicio,
+# ej. "[[adjunto:12]] leyenda del usuario", para poder mostrar la imagen/
+# archivo real en el panel sin tener que cambiar el esquema de Mensaje.
+PATRON_ADJUNTO = re.compile(r"^\[\[adjunto:(\d+)\]\]\s*")
 
 logger = logging.getLogger("agentkit")
 router = APIRouter()
@@ -67,6 +74,7 @@ ESTILO = """
   @keyframes pulso { 0%,100% { opacity:1; } 50% { opacity:.75; } }
   .btn-sonido { background:#111827; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; margin-bottom:16px; }
   .btn-sonido.activo { background:#16a34a; }
+  .adjunto-img { max-width:260px; max-height:260px; border-radius:8px; display:block; }
 </style>
 """
 
@@ -204,7 +212,12 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     filas = ""
     for c in conversaciones:
         tel = html.escape(c["telefono"] or "(desconocido)")
-        preview = html.escape((c["ultimo_mensaje"] or "")[:120])
+        ultimo_mensaje = c["ultimo_mensaje"] or ""
+        if PATRON_ADJUNTO.match(ultimo_mensaje):
+            ultimo_mensaje = ("📎 " + PATRON_ADJUNTO.sub("", ultimo_mensaje)).strip()
+            if ultimo_mensaje == "📎":
+                ultimo_mensaje = "📎 Archivo adjunto"
+        preview = html.escape(ultimo_mensaje[:120])
         prefijo = "Tú: " if c["ultimo_role"] == "assistant" else ""
         fecha = c["ultima_fecha"].strftime("%d/%m/%Y %H:%M") if c["ultima_fecha"] else ""
         badge = '<span class="badge">Necesita humano</span>' if c.get("modo_humano") else ""
@@ -233,6 +246,20 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     """
 
 
+@router.get("/admin/media/{adjunto_id}")
+async def ver_adjunto(adjunto_id: int, usuario: str = Depends(_verificar_credenciales)):
+    """Sirve el archivo real (imagen/documento) que envió un socio por WhatsApp."""
+    adjunto = await obtener_adjunto(adjunto_id)
+    if not adjunto:
+        raise HTTPException(status_code=404, detail="Adjunto no encontrado")
+    nombre = adjunto["nombre_archivo"] or f"adjunto_{adjunto_id}"
+    return Response(
+        content=adjunto["contenido"],
+        media_type=adjunto["mime_type"] or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{nombre}"'},
+    )
+
+
 @router.get("/admin/api/pendientes")
 async def api_pendientes(usuario: str = Depends(_verificar_credenciales)):
     """Lista los teléfonos que están esperando un asesor humano (modo_humano=True)."""
@@ -250,9 +277,22 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
     burbujas = ""
     for msg in historial:
         clase = {"assistant": "assistant", "humano": "humano"}.get(msg["role"], "user")
-        contenido = html.escape(msg["content"])
         ts = msg["timestamp"].strftime("%d/%m/%Y %H:%M") if msg.get("timestamp") else ""
         etiqueta = " (tú)" if msg["role"] == "humano" else ""
+
+        match = PATRON_ADJUNTO.match(msg["content"])
+        if match:
+            adjunto_id = match.group(1)
+            texto_restante = html.escape(msg["content"][match.end():])
+            adjunto_html = (
+                f'<a href="/admin/media/{adjunto_id}" target="_blank">'
+                f'<img src="/admin/media/{adjunto_id}" class="adjunto-img" '
+                f'onerror="this.outerHTML=\'📎 <a href=&quot;/admin/media/{adjunto_id}&quot; target=&quot;_blank&quot;>Ver archivo adjunto</a>\'"></a>'
+            )
+            contenido = adjunto_html + (f"<div>{texto_restante}</div>" if texto_restante else "")
+        else:
+            contenido = html.escape(msg["content"])
+
         burbujas += f"""
         <div class="row">
           <div class="bubble {clase}">{contenido}<div class="ts">{ts}{etiqueta}</div></div>

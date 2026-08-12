@@ -59,13 +59,16 @@ class ProveedorMeta(ProveedorWhatsApp):
                     elif tipo_msg in ("document", "image"):
                         # El socio envió un archivo adjunto (ej. comprobante de pago).
                         # El "caption" (si lo escribió) queda en texto, puede venir vacío.
-                        caption = msg.get(tipo_msg, {}).get("caption", "")
+                        adjunto = msg.get(tipo_msg, {})
+                        caption = adjunto.get("caption", "")
                         mensajes.append(MensajeEntrante(
                             telefono=remitente,
                             texto=caption,
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
                             tipo=tipo_msg,
+                            media_id=adjunto.get("id", ""),
+                            nombre_archivo=adjunto.get("filename", ""),
                         ))
         return mensajes
 
@@ -158,3 +161,29 @@ class ProveedorMeta(ProveedorWhatsApp):
             if r.status_code != 200:
                 logger.error(f"Error enviando documento via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
+
+    async def descargar_media(self, media_id: str) -> tuple[bytes, str] | None:
+        """
+        Descarga un archivo recibido de un socio (comprobante de pago, etc.).
+        Meta requiere 2 pasos: 1) pedir la URL temporal del archivo con el
+        media_id, 2) descargar esa URL con el mismo token de acceso.
+        """
+        if not self.access_token or not media_id:
+            return None
+        url_info = f"https://graph.facebook.com/{self.api_version}/{media_id}"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url_info, headers=headers, timeout=30)
+            if r.status_code != 200:
+                logger.error(f"Error obteniendo info de media {media_id}: {r.status_code} — {r.text}")
+                return None
+            info = r.json()
+            media_url = info.get("url")
+            mime_type = info.get("mime_type", "application/octet-stream")
+            if not media_url:
+                return None
+            r2 = await client.get(media_url, headers=headers, timeout=60)
+            if r2.status_code != 200:
+                logger.error(f"Error descargando media {media_id}: {r2.status_code}")
+                return None
+            return r2.content, mime_type

@@ -33,6 +33,7 @@ from agent.memory import (
     obtener_historial,
     activar_modo_humano,
     esta_en_modo_humano,
+    guardar_adjunto,
 )
 from agent.providers import obtener_proveedor
 from agent.admin import router as admin_router
@@ -111,6 +112,22 @@ async def webhook_handler(request: Request):
                 logger.info(f"Adjunto ({msg.tipo}) de {msg.telefono}")
                 respuesta = MENSAJE_COMPROBANTE_RECIBIDO
                 registro = msg.texto or f"[{msg.tipo} adjunto sin descripción]"
+
+                # Descargar y guardar el archivo real para que el equipo
+                # pueda verlo/descargarlo desde el panel /admin.
+                if msg.media_id:
+                    descarga = await proveedor.descargar_media(msg.media_id)
+                    if descarga:
+                        contenido_bytes, mime_type = descarga
+                        nombre_archivo = msg.nombre_archivo or f"adjunto_{msg.mensaje_id}"
+                        adjunto_id = await guardar_adjunto(
+                            msg.telefono, nombre_archivo, mime_type, contenido_bytes
+                        )
+                        etiqueta = f"[[adjunto:{adjunto_id}]]"
+                        registro = f"{etiqueta} {registro}".strip()
+                    else:
+                        logger.error(f"No se pudo descargar el adjunto {msg.media_id} de {msg.telefono}")
+
                 await guardar_mensaje(msg.telefono, "user", registro)
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)

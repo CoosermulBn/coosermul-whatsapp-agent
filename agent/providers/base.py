@@ -19,6 +19,8 @@ class MensajeEntrante:
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
     tipo: str = "text"  # "text" | "document" | "image" — tipo de contenido recibido
+    media_id: str = ""       # ID del adjunto en el proveedor (para descargarlo)
+    nombre_archivo: str = "" # Nombre de archivo original, si el proveedor lo da
 
 
 class ProveedorWhatsApp(ABC):
@@ -42,6 +44,13 @@ class ProveedorWhatsApp(ABC):
         soporten esto pueden dejar la implementación por defecto (no-op).
         """
         return False
+
+    async def descargar_media(self, media_id: str) -> tuple[bytes, str] | None:
+        """
+        Descarga un archivo recibido (por su media_id) desde el proveedor.
+        Retorna (contenido_bytes, mime_type) o None si falla.
+        """
+        return None
 
     async def validar_webhook(self, request: Request) -> dict | int | None:
         """Verificación GET del webhook (solo Meta la requiere). Retorna respuesta o None."""
