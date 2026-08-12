@@ -29,6 +29,7 @@ from dotenv import load_dotenv
 from agent.brain import generar_respuesta
 from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
 from agent.providers import obtener_proveedor
+from agent.admin import router as admin_router
 
 load_dotenv()
 
@@ -65,6 +66,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+app.include_router(admin_router)
 
 
 @app.get("/")

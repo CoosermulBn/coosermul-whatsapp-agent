@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, select, Integer
+from sqlalchemy import String, Text, DateTime, select, Integer, func
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -86,6 +86,61 @@ async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
 
         return [
             {"role": msg.role, "content": msg.content}
+            for msg in mensajes
+        ]
+
+
+async def listar_conversaciones() -> list[dict]:
+    """
+    Lista todos los números que han escrito, con su último mensaje y fecha,
+    ordenados del más reciente al más antiguo. Para el panel de admin.
+    """
+    async with async_session() as session:
+        # último mensaje por teléfono
+        subq = (
+            select(
+                Mensaje.telefono,
+                func.max(Mensaje.timestamp).label("ultima_fecha"),
+                func.count(Mensaje.id).label("total_mensajes"),
+            )
+            .group_by(Mensaje.telefono)
+            .order_by(func.max(Mensaje.timestamp).desc())
+        )
+        result = await session.execute(subq)
+        filas = result.all()
+
+        conversaciones = []
+        for telefono, ultima_fecha, total_mensajes in filas:
+            query_ultimo = (
+                select(Mensaje)
+                .where(Mensaje.telefono == telefono)
+                .order_by(Mensaje.timestamp.desc())
+                .limit(1)
+            )
+            r2 = await session.execute(query_ultimo)
+            ultimo = r2.scalars().first()
+            conversaciones.append({
+                "telefono": telefono,
+                "ultima_fecha": ultima_fecha,
+                "total_mensajes": total_mensajes,
+                "ultimo_role": ultimo.role if ultimo else "",
+                "ultimo_mensaje": ultimo.content if ultimo else "",
+            })
+        return conversaciones
+
+
+async def obtener_historial_completo(telefono: str) -> list[dict]:
+    """Recupera TODO el historial (sin límite) de una conversación, con fecha."""
+    async with async_session() as session:
+        query = (
+            select(Mensaje)
+            .where(Mensaje.telefono == telefono)
+            .order_by(Mensaje.timestamp.asc())
+        )
+        result = await session.execute(query)
+        mensajes = result.scalars().all()
+        return [
+            {"role": msg.role, "content": msg.content, "timestamp": msg.timestamp}
             for msg in mensajes
         ]
 
