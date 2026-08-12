@@ -40,10 +40,15 @@ class ProveedorMeta(ProveedorWhatsApp):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 for msg in value.get("messages", []):
+                    # Meta identifica al remitente con "from" (número de
+                    # teléfono clásico) en la mayoría de casos, pero en
+                    # algunos flujos nuevos (ej. identidad "opaca" por
+                    # privacidad) usa "from_user_id" en su lugar.
+                    remitente = msg.get("from") or msg.get("from_user_id", "")
                     tipo_msg = msg.get("type")
                     if tipo_msg == "text":
                         mensajes.append(MensajeEntrante(
-                            telefono=msg.get("from", ""),
+                            telefono=remitente,
                             texto=msg.get("text", {}).get("body", ""),
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,  # Meta solo envía mensajes entrantes
@@ -54,7 +59,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                         # El "caption" (si lo escribió) queda en texto, puede venir vacío.
                         caption = msg.get(tipo_msg, {}).get("caption", "")
                         mensajes.append(MensajeEntrante(
-                            telefono=msg.get("from", ""),
+                            telefono=remitente,
                             texto=caption,
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
