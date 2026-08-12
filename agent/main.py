@@ -27,7 +27,13 @@ from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial
+from agent.memory import (
+    inicializar_db,
+    guardar_mensaje,
+    obtener_historial,
+    activar_modo_humano,
+    esta_en_modo_humano,
+)
 from agent.providers import obtener_proveedor
 from agent.admin import router as admin_router
 
@@ -117,11 +123,20 @@ async def webhook_handler(request: Request):
 
             logger.info(f"Mensaje de {msg.telefono}: {msg.texto}")
 
+            # Si la conversación ya está en manos de un humano, el bot NO
+            # responde — solo guarda el mensaje para que el equipo lo vea
+            # y conteste desde el panel /admin, en el mismo chat.
+            if await esta_en_modo_humano(msg.telefono):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                logger.info(f"{msg.telefono} esta en modo humano, el bot no responde")
+                continue
+
             # Obtener historial ANTES de guardar el mensaje actual
             # (brain.py agrega el mensaje actual, evitando duplicados)
             historial = await obtener_historial(msg.telefono)
 
-            # Generar respuesta con Claude (puede incluir documentos a enviar)
+            # Generar respuesta con Claude (puede incluir documentos a enviar
+            # o pedir escalar la conversación a un humano)
             resultado = await generar_respuesta(msg.texto, historial)
             respuesta = resultado["texto"]
             documentos = resultado.get("documentos", [])
@@ -142,6 +157,12 @@ async def webhook_handler(request: Request):
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
 
             logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
+
+            # Si Claude pidió escalar, activamos el modo humano DESPUÉS de
+            # enviar la respuesta (para que el bot se despida antes de callar)
+            if resultado.get("escalar"):
+                await activar_modo_humano(msg.telefono)
+                logger.info(f"Conversacion con {msg.telefono} pasada a modo humano: {resultado.get('motivo_escalamiento', '')}")
 
         return {"status": "ok"}
 

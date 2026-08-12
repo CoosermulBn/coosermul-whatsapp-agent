@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, select, Integer, func
+from sqlalchemy import String, Text, DateTime, Boolean, select, Integer, func
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,6 +39,19 @@ class Mensaje(Base):
     role: Mapped[str] = mapped_column(String(20))  # "user" o "assistant"
     content: Mapped[str] = mapped_column(Text)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EstadoConversacion(Base):
+    """
+    Marca si una conversación está en modo humano (el bot deja de
+    responder automáticamente hasta que un miembro del equipo la libere
+    desde el panel /admin).
+    """
+    __tablename__ = "estado_conversacion"
+
+    telefono: Mapped[str] = mapped_column(String(50), primary_key=True)
+    modo_humano: Mapped[bool] = mapped_column(Boolean, default=False)
+    actualizado: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 async def inicializar_db():
@@ -119,12 +132,14 @@ async def listar_conversaciones() -> list[dict]:
             )
             r2 = await session.execute(query_ultimo)
             ultimo = r2.scalars().first()
+            estado = await session.get(EstadoConversacion, telefono)
             conversaciones.append({
                 "telefono": telefono,
                 "ultima_fecha": ultima_fecha,
                 "total_mensajes": total_mensajes,
                 "ultimo_role": ultimo.role if ultimo else "",
                 "ultimo_mensaje": ultimo.content if ultimo else "",
+                "modo_humano": bool(estado and estado.modo_humano),
             })
         return conversaciones
 
@@ -143,6 +158,36 @@ async def obtener_historial_completo(telefono: str) -> list[dict]:
             {"role": msg.role, "content": msg.content, "timestamp": msg.timestamp}
             for msg in mensajes
         ]
+
+
+async def activar_modo_humano(telefono: str):
+    """Marca la conversación para que el bot deje de responder automáticamente."""
+    async with async_session() as session:
+        estado = await session.get(EstadoConversacion, telefono)
+        if estado:
+            estado.modo_humano = True
+            estado.actualizado = datetime.utcnow()
+        else:
+            estado = EstadoConversacion(telefono=telefono, modo_humano=True, actualizado=datetime.utcnow())
+            session.add(estado)
+        await session.commit()
+
+
+async def desactivar_modo_humano(telefono: str):
+    """Devuelve la conversación al bot (deja de estar en modo humano)."""
+    async with async_session() as session:
+        estado = await session.get(EstadoConversacion, telefono)
+        if estado:
+            estado.modo_humano = False
+            estado.actualizado = datetime.utcnow()
+            await session.commit()
+
+
+async def esta_en_modo_humano(telefono: str) -> bool:
+    """Retorna True si esta conversación está en manos de un humano ahora."""
+    async with async_session() as session:
+        estado = await session.get(EstadoConversacion, telefono)
+        return bool(estado and estado.modo_humano)
 
 
 async def limpiar_historial(telefono: str):

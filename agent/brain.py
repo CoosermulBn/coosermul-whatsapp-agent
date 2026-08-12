@@ -64,6 +64,27 @@ HERRAMIENTAS = [
             "required": ["perfil"],
         },
     },
+    {
+        "name": "escalar_a_humano",
+        "description": (
+            "Avisa al equipo humano de Coosermul BN que este socio necesita "
+            "hablar con una persona, DENTRO de esta misma conversación de "
+            "WhatsApp (no lo mandes a otro número ni canal). Úsala cuando el "
+            "socio pida explícitamente hablar con un asesor/humano, o cuando "
+            "la consulta claramente no la puedes resolver tú (ej. reclamos, "
+            "casos muy específicos o delicados)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "motivo": {
+                    "type": "string",
+                    "description": "Resumen breve de por qué el socio necesita un humano",
+                }
+            },
+            "required": ["motivo"],
+        },
+    },
 ]
 
 
@@ -102,30 +123,52 @@ def _texto_de(response) -> str:
     ).strip()
 
 
-def _ejecutar_herramienta(nombre: str, entrada: dict) -> tuple[str, list[dict]]:
+def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
     """
     Ejecuta una herramienta localmente (sin llamar a ninguna API externa).
 
     Returns:
-        (resultado_para_claude, documentos_a_enviar)
-        documentos_a_enviar: lista de {"nombre_archivo": ..., "ruta": ...}
+        {"resultado_texto": str, "documentos": [...], "escalar": bool, "motivo": str}
     """
     if nombre == "enviar_paquete_credito":
         archivos = resolver_paquete_credito()
-    elif nombre == "enviar_paquete_inscripcion":
+        if not archivos:
+            return {"resultado_texto": "No se encontraron documentos.", "documentos": [], "escalar": False}
+        documentos = [
+            {"nombre_archivo": n, "ruta": ruta_completa(n)} for n in archivos
+        ]
+        return {
+            "resultado_texto": f"Documentos preparados y en cola de envío: {', '.join(archivos)}.",
+            "documentos": documentos,
+            "escalar": False,
+        }
+
+    if nombre == "enviar_paquete_inscripcion":
         archivos = resolver_paquete_inscripcion(entrada.get("perfil", ""))
-    else:
-        return f"Herramienta desconocida: {nombre}", []
+        if not archivos:
+            return {"resultado_texto": "No se encontraron documentos para ese perfil.", "documentos": [], "escalar": False}
+        documentos = [
+            {"nombre_archivo": n, "ruta": ruta_completa(n)} for n in archivos
+        ]
+        return {
+            "resultado_texto": f"Documentos preparados y en cola de envío: {', '.join(archivos)}.",
+            "documentos": documentos,
+            "escalar": False,
+        }
 
-    if not archivos:
-        return "No se encontraron documentos para ese perfil/paquete.", []
+    if nombre == "escalar_a_humano":
+        motivo = entrada.get("motivo", "El socio pidió hablar con un asesor.")
+        return {
+            "resultado_texto": (
+                "Escalamiento registrado. El equipo humano fue notificado y va a "
+                "responder en este mismo chat de WhatsApp en cuanto pueda."
+            ),
+            "documentos": [],
+            "escalar": True,
+            "motivo": motivo,
+        }
 
-    documentos = [
-        {"nombre_archivo": nombre_archivo, "ruta": ruta_completa(nombre_archivo)}
-        for nombre_archivo in archivos
-    ]
-    resultado = f"Documentos preparados y en cola de envío: {', '.join(archivos)}."
-    return resultado, documentos
+    return {"resultado_texto": f"Herramienta desconocida: {nombre}", "documentos": [], "escalar": False}
 
 
 async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
@@ -140,7 +183,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     Returns:
         {"texto": str, "documentos": [{"nombre_archivo": str, "ruta": str}, ...]}
     """
-    vacio = {"texto": obtener_mensaje_fallback(), "documentos": []}
+    vacio = {"texto": obtener_mensaje_fallback(), "documentos": [], "escalar": False, "motivo_escalamiento": ""}
     if not mensaje or not mensaje.strip():
         return vacio
 
@@ -150,6 +193,8 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     mensajes.append({"role": "user", "content": mensaje})
 
     documentos_totales: list[dict] = []
+    escalar_total = False
+    motivo_total = ""
 
     try:
         # Hasta 2 vueltas: 1) Claude puede pedir usar una herramienta,
@@ -167,9 +212,19 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                 texto = _texto_de(response)
                 if not texto:
                     logger.warning("Claude no devolvio texto (solo bloques no-texto)")
-                    return {"texto": obtener_mensaje_error(), "documentos": documentos_totales}
+                    return {
+                        "texto": obtener_mensaje_error(),
+                        "documentos": documentos_totales,
+                        "escalar": escalar_total,
+                        "motivo_escalamiento": motivo_total,
+                    }
                 logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
-                return {"texto": texto, "documentos": documentos_totales}
+                return {
+                    "texto": texto,
+                    "documentos": documentos_totales,
+                    "escalar": escalar_total,
+                    "motivo_escalamiento": motivo_total,
+                }
 
             # Claude pidió usar una o más herramientas: las ejecutamos y
             # le devolvemos el resultado para que continúe la conversación.
@@ -178,12 +233,15 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             for bloque in response.content:
                 if getattr(bloque, "type", None) == "tool_use":
                     logger.info(f"Claude solicito herramienta: {bloque.name}({bloque.input})")
-                    resultado_texto, documentos = _ejecutar_herramienta(bloque.name, bloque.input or {})
-                    documentos_totales.extend(documentos)
+                    resultado = _ejecutar_herramienta(bloque.name, bloque.input or {})
+                    documentos_totales.extend(resultado["documentos"])
+                    if resultado.get("escalar"):
+                        escalar_total = True
+                        motivo_total = resultado.get("motivo", "")
                     resultados_tool.append({
                         "type": "tool_result",
                         "tool_use_id": bloque.id,
-                        "content": resultado_texto,
+                        "content": resultado["resultado_texto"],
                     })
             mensajes.append({"role": "user", "content": resultados_tool})
 
@@ -192,8 +250,15 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
         return {
             "texto": "Listo, ya te envié la información solicitada. ¿Necesitas algo más?",
             "documentos": documentos_totales,
+            "escalar": escalar_total,
+            "motivo_escalamiento": motivo_total,
         }
 
     except Exception:
         logger.exception("Error Claude API")
-        return {"texto": obtener_mensaje_error(), "documentos": documentos_totales}
+        return {
+            "texto": obtener_mensaje_error(),
+            "documentos": documentos_totales,
+            "escalar": escalar_total,
+            "motivo_escalamiento": motivo_total,
+        }
