@@ -24,6 +24,7 @@ from agent.memory import (
     activar_modo_humano,
     desactivar_modo_humano,
     esta_en_modo_humano,
+    limpiar_historial,
 )
 from agent.providers import obtener_proveedor
 
@@ -59,6 +60,7 @@ ESTILO = """
   form.reply input[type=file] { font-size:12px; max-width:180px; }
   form.reply button { background:#16a34a; color:#fff; border:none; border-radius:10px; padding:0 18px; height:38px; font-size:14px; cursor:pointer; }
   .btn-liberar { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
+  .btn-borrar { background:#dc2626; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
 </style>
 """
 
@@ -140,6 +142,12 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
         f'<button class="btn-liberar" type="submit">Devolver al bot</button></form>'
         if en_modo_humano else ""
     )
+    boton_borrar = f"""
+      <form method="post" action="/admin/chat/{tel_seguro}/borrar"
+            onsubmit="return confirm('¿Borrar todo el historial de esta conversación? Esto no se puede deshacer.');">
+        <button class="btn-borrar" type="submit">Borrar historial</button>
+      </form>
+    """
 
     return f"""
     <html>
@@ -147,7 +155,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
     <body>
       <div class="toolbar">
         <a class="back" href="/admin">&larr; Volver a conversaciones</a>
-        {boton_liberar}
+        <div style="display:flex; gap:8px;">{boton_liberar}{boton_borrar}</div>
       </div>
       <h1>{tel_seguro}{badge}</h1>
       {burbujas}
@@ -222,3 +230,11 @@ async def liberar_chat(telefono: str, usuario: str = Depends(_verificar_credenci
     """Devuelve la conversación al bot."""
     await desactivar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/chat/{telefono}/borrar")
+async def borrar_chat(telefono: str, usuario: str = Depends(_verificar_credenciales)):
+    """Borra todo el historial de una conversación (para reiniciar pruebas, por ejemplo)."""
+    await limpiar_historial(telefono)
+    await desactivar_modo_humano(telefono)
+    return RedirectResponse(url="/admin", status_code=303)
