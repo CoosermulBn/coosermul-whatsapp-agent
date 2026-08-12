@@ -28,6 +28,7 @@ from agent.memory import (
     esta_en_modo_humano,
     limpiar_historial,
     obtener_adjunto,
+    obtener_eventos_atencion,
 )
 from agent.providers import obtener_proveedor
 
@@ -75,6 +76,12 @@ ESTILO = """
   .btn-sonido { background:#111827; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; margin-bottom:16px; }
   .btn-sonido.activo { background:#16a34a; }
   .adjunto-img { max-width:260px; max-height:260px; border-radius:8px; display:block; }
+  .feed-eventos { display:none; background:#fff; border-radius:10px; padding:12px 16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .feed-eventos h4 { margin:0 0 8px 0; font-size:13px; color:#666; }
+  .feed-item { font-size:13px; padding:6px 0; border-top:1px solid #eee; }
+  .feed-item:first-child { border-top:none; }
+  .feed-item a { color:#2563eb; text-decoration:none; font-weight:600; }
+  .feed-item .tipo { color:#888; }
 </style>
 """
 
@@ -91,6 +98,13 @@ SCRIPT_NOTIFICACIONES = """
   var sonidoActivo = false;
   var tituloOriginal = document.title;
   var parpadeo = null;
+
+  // Eventos que requieren atención inmediata: conversación nueva o adjunto
+  // recibido. Se identifican por id de mensaje (no por teléfono), para no
+  // perder avisos si el mismo número escribe varias veces.
+  var guardadoEventoId = localStorage.getItem('coosermul_ultimo_evento_id');
+  var ultimoEventoId = guardadoEventoId === null ? null : parseInt(guardadoEventoId, 10);
+  var historialEventos = JSON.parse(localStorage.getItem('coosermul_historial_eventos') || '[]');
 
   function activarSonido(porClickDelUsuario) {
     try {
@@ -137,6 +151,57 @@ SCRIPT_NOTIFICACIONES = """
     }
   }
 
+  function etiquetaTipo(tipo) {
+    if (tipo === 'nueva_conversacion') return '🆕 Nueva conversación';
+    if (tipo === 'adjunto') return '📎 Envió un archivo';
+    if (tipo === 'nueva_conversacion_adjunto') return '🆕📎 Nueva conversación con archivo';
+    return 'Actividad';
+  }
+
+  function pintarFeed() {
+    var caja = document.getElementById('feed-eventos');
+    var lista = document.getElementById('feed-eventos-lista');
+    if (!caja || !lista) return;
+    if (historialEventos.length === 0) { caja.style.display = 'none'; return; }
+    caja.style.display = 'block';
+    lista.innerHTML = historialEventos.map(function (ev) {
+      return '<div class="feed-item"><span class="tipo">' + etiquetaTipo(ev.tipo) + '</span> — ' +
+        '<a href="/admin/chat/' + ev.telefono + '">' + ev.telefono + '</a></div>';
+    }).join('');
+  }
+
+  function revisarEventos() {
+    var url = '/admin/api/eventos?desde_id=' + (ultimoEventoId === null ? 0 : ultimoEventoId);
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      var eventos = data.eventos || [];
+      var esPrimeraCarga = (ultimoEventoId === null);
+      var maxId = ultimoEventoId === null ? 0 : ultimoEventoId;
+
+      eventos.forEach(function (ev) {
+        if (ev.id > maxId) maxId = ev.id;
+        historialEventos.unshift(ev);
+      });
+      if (historialEventos.length > 8) historialEventos = historialEventos.slice(0, 8);
+      localStorage.setItem('coosermul_historial_eventos', JSON.stringify(historialEventos));
+      pintarFeed();
+
+      // En la primera carga de la página no avisamos (evita un alud de
+      // sonidos/notificaciones por historial viejo); desde ahí en adelante
+      // sí, apenas aparezca algo nuevo.
+      if (!esPrimeraCarga && eventos.length > 0 && sonidoActivo) {
+        pitar();
+        if (window.Notification && Notification.permission === 'granted') {
+          eventos.forEach(function (ev) {
+            new Notification('Coosermul BN — ' + etiquetaTipo(ev.tipo), { body: ev.telefono });
+          });
+        }
+      }
+
+      ultimoEventoId = maxId;
+      localStorage.setItem('coosermul_ultimo_evento_id', String(maxId));
+    }).catch(function () {});
+  }
+
   function revisarPendientes() {
     fetch('/admin/api/pendientes').then(function (r) { return r.json(); }).then(function (data) {
       var pendientes = data.telefonos || [];
@@ -180,8 +245,10 @@ SCRIPT_NOTIFICACIONES = """
     if (localStorage.getItem('coosermul_sonido_activado') === '1') {
       activarSonido(false);
     }
+    pintarFeed();
     revisarPendientes();
-    setInterval(revisarPendientes, 8000);
+    revisarEventos();
+    setInterval(function () { revisarPendientes(); revisarEventos(); }, 8000);
   });
 })();
 </script>
@@ -239,6 +306,7 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
       <div class="sub">Coosermul BN · Soporte Coosermul</div>
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
       <div id="alerta-pendientes" class="alerta"></div>
+      <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
       {filas}
       {SCRIPT_NOTIFICACIONES}
     </body>
@@ -266,6 +334,26 @@ async def api_pendientes(usuario: str = Depends(_verificar_credenciales)):
     conversaciones = await listar_conversaciones()
     telefonos = [c["telefono"] for c in conversaciones if c.get("modo_humano")]
     return JSONResponse({"telefonos": telefonos})
+
+
+@router.get("/admin/api/eventos")
+async def api_eventos(desde_id: int = 0, usuario: str = Depends(_verificar_credenciales)):
+    """
+    Eventos que requieren atención inmediata: conversaciones nuevas y
+    adjuntos (imágenes/documentos) recibidos, con id > desde_id.
+    """
+    eventos = await obtener_eventos_atencion(desde_id=desde_id)
+    return JSONResponse({
+        "eventos": [
+            {
+                "id": e["id"],
+                "telefono": e["telefono"],
+                "tipo": e["tipo"],
+                "timestamp": e["timestamp"].isoformat() if e.get("timestamp") else None,
+            }
+            for e in eventos
+        ]
+    })
 
 
 @router.get("/admin/chat/{telefono}", response_class=HTMLResponse)
@@ -325,6 +413,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
       </div>
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
       <div id="alerta-pendientes" class="alerta"></div>
+      <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
       <h1>{tel_seguro}{badge}</h1>
       {burbujas}
       <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">

@@ -232,6 +232,64 @@ async def obtener_adjunto(adjunto_id: int) -> dict | None:
         }
 
 
+async def obtener_eventos_atencion(desde_id: int = 0, limite: int = 50) -> list[dict]:
+    """
+    Eventos que requieren atención inmediata del equipo: el primer mensaje
+    de una conversación nueva, y/o un adjunto (imagen/documento) recibido.
+    Se usan para las notificaciones del panel /admin. Devuelve en orden
+    ascendente por id (los más antiguos primero).
+    """
+    async with async_session() as session:
+        primeros_ids_subq = (
+            select(Mensaje.telefono, func.min(Mensaje.id).label("primer_id"))
+            .where(Mensaje.role == "user")
+            .group_by(Mensaje.telefono)
+            .subquery()
+        )
+        query_nuevas = (
+            select(Mensaje.id)
+            .join(primeros_ids_subq, Mensaje.id == primeros_ids_subq.c.primer_id)
+            .where(Mensaje.id > desde_id)
+        )
+        ids_nuevas = set((await session.execute(query_nuevas)).scalars().all())
+
+        query_adjuntos = (
+            select(Mensaje.id)
+            .where(
+                Mensaje.role == "user",
+                Mensaje.id > desde_id,
+                Mensaje.content.like("[[adjunto:%"),
+            )
+        )
+        ids_adjuntos = set((await session.execute(query_adjuntos)).scalars().all())
+
+        ids_relevantes = ids_nuevas | ids_adjuntos
+        if not ids_relevantes:
+            return []
+
+        query_msgs = select(Mensaje).where(Mensaje.id.in_(ids_relevantes)).order_by(Mensaje.id.asc())
+        mensajes = (await session.execute(query_msgs)).scalars().all()
+
+        eventos = []
+        for m in mensajes:
+            es_nueva = m.id in ids_nuevas
+            es_adjunto = m.id in ids_adjuntos
+            if es_nueva and es_adjunto:
+                tipo = "nueva_conversacion_adjunto"
+            elif es_nueva:
+                tipo = "nueva_conversacion"
+            else:
+                tipo = "adjunto"
+            eventos.append({
+                "id": m.id,
+                "telefono": m.telefono,
+                "tipo": tipo,
+                "timestamp": m.timestamp,
+            })
+
+        return eventos[-limite:] if limite else eventos
+
+
 async def limpiar_historial(telefono: str):
     """Borra todo el historial de una conversación."""
     async with async_session() as session:
