@@ -12,7 +12,8 @@ import os
 import html
 import secrets
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Form
+import tempfile
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
@@ -53,9 +54,10 @@ ESTILO = """
   .ts { font-size:11px; color:#999; margin-top:2px; }
   .badge { display:inline-block; background:#f97316; color:#fff; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
   .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:10px; flex-wrap:wrap; }
-  form.reply { display:flex; gap:8px; margin-top:20px; position:sticky; bottom:0; background:#f4f4f6; padding:10px 0; }
-  form.reply textarea { flex:1; border-radius:10px; border:1px solid #ddd; padding:10px; font-family:inherit; font-size:14px; resize:vertical; min-height:44px; }
-  form.reply button { background:#16a34a; color:#fff; border:none; border-radius:10px; padding:0 18px; font-size:14px; cursor:pointer; }
+  form.reply { display:flex; gap:8px; margin-top:20px; position:sticky; bottom:0; background:#f4f4f6; padding:10px 0; align-items:flex-end; flex-wrap:wrap; }
+  form.reply textarea { flex:1; min-width:200px; border-radius:10px; border:1px solid #ddd; padding:10px; font-family:inherit; font-size:14px; resize:vertical; min-height:44px; }
+  form.reply input[type=file] { font-size:12px; max-width:180px; }
+  form.reply button { background:#16a34a; color:#fff; border:none; border-radius:10px; padding:0 18px; height:38px; font-size:14px; cursor:pointer; }
   .btn-liberar { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
 </style>
 """
@@ -149,8 +151,9 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
       </div>
       <h1>{tel_seguro}{badge}</h1>
       {burbujas}
-      <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder">
-        <textarea name="mensaje" placeholder="Escribe tu respuesta (se envía por WhatsApp)..." required></textarea>
+      <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">
+        <textarea name="mensaje" placeholder="Escribe tu respuesta (opcional si adjuntas un archivo)..."></textarea>
+        <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png">
         <button type="submit">Enviar</button>
       </form>
     </body>
@@ -158,21 +161,56 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
     """
 
 
+MAX_ADJUNTO_BYTES = 20 * 1024 * 1024  # 20 MB, límite de WhatsApp para documentos
+
+
 @router.post("/admin/chat/{telefono}/responder")
 async def responder_chat(
     telefono: str,
-    mensaje: str = Form(...),
+    mensaje: str = Form(""),
+    archivo: UploadFile | None = File(None),
     usuario: str = Depends(_verificar_credenciales),
 ):
-    """El equipo humano envía un mensaje real por WhatsApp, en el mismo chat."""
-    mensaje = mensaje.strip()
-    if mensaje:
-        proveedor = obtener_proveedor()
+    """El equipo humano envía un mensaje y/o un archivo real por WhatsApp, en el mismo chat."""
+    mensaje = (mensaje or "").strip()
+    proveedor = obtener_proveedor()
+    algo_enviado = False
+
+    if archivo is not None and archivo.filename:
+        contenido = await archivo.read()
+        if len(contenido) > MAX_ADJUNTO_BYTES:
+            logger.error(f"Adjunto de {telefono} supera el límite de tamaño ({len(contenido)} bytes)")
+        else:
+            sufijo = os.path.splitext(archivo.filename)[1] or ""
+            with tempfile.NamedTemporaryFile(delete=False, suffix=sufijo) as tmp:
+                tmp.write(contenido)
+                ruta_temp = tmp.name
+            try:
+                enviado = await proveedor.enviar_documento(
+                    telefono, ruta_temp, archivo.filename, caption=mensaje
+                )
+            finally:
+                try:
+                    os.remove(ruta_temp)
+                except OSError:
+                    pass
+            if enviado:
+                registro = f"[archivo enviado: {archivo.filename}]"
+                if mensaje:
+                    registro += f" {mensaje}"
+                await guardar_mensaje(telefono, "humano", registro)
+                algo_enviado = True
+            else:
+                logger.error(f"No se pudo enviar el archivo {archivo.filename} a {telefono}")
+    elif mensaje:
         enviado = await proveedor.enviar_mensaje(telefono, mensaje)
         if enviado:
             await guardar_mensaje(telefono, "humano", mensaje)
+            algo_enviado = True
         else:
             logger.error(f"No se pudo enviar la respuesta manual a {telefono}")
+
+    if algo_enviado:
         # Si un humano responde, la conversación queda en modo humano
         # (el bot no debe interrumpir mientras el equipo está atendiendo).
         await activar_modo_humano(telefono)

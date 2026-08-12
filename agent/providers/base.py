@@ -34,7 +34,9 @@ class ProveedorWhatsApp(ABC):
         """Envía un mensaje de texto. Retorna True si fue exitoso."""
         ...
 
-    async def enviar_documento(self, telefono: str, ruta_archivo: str, nombre_archivo: str) -> bool:
+    async def enviar_documento(
+        self, telefono: str, ruta_archivo: str, nombre_archivo: str, caption: str = ""
+    ) -> bool:
         """
         Envía un archivo (PDF, imagen, etc.) desde disco. Proveedores que no
         soporten esto pueden dejar la implementación por defecto (no-op).

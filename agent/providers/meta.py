@@ -3,6 +3,7 @@
 
 import os
 import json
+import mimetypes
 import logging
 import httpx
 from fastapi import Request
@@ -90,13 +91,13 @@ class ProveedorMeta(ProveedorWhatsApp):
                 logger.error(f"Error Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
 
-    async def _subir_media(self, ruta_archivo: str) -> str | None:
+    async def _subir_media(self, ruta_archivo: str, mime_type: str) -> str | None:
         """Sube un archivo local a los servidores de Meta y retorna su media_id."""
         url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/media"
         headers = {"Authorization": f"Bearer {self.access_token}"}
         try:
             with open(ruta_archivo, "rb") as f:
-                files = {"file": (os.path.basename(ruta_archivo), f, "application/pdf")}
+                files = {"file": (os.path.basename(ruta_archivo), f, mime_type)}
                 data = {"messaging_product": "whatsapp"}
                 async with httpx.AsyncClient() as client:
                     r = await client.post(url, headers=headers, data=data, files=files, timeout=60)
@@ -108,25 +109,50 @@ class ProveedorMeta(ProveedorWhatsApp):
             return None
         return r.json().get("id")
 
-    async def enviar_documento(self, telefono: str, ruta_archivo: str, nombre_archivo: str) -> bool:
-        """Sube un archivo y lo envía como documento por WhatsApp."""
+    async def enviar_documento(
+        self, telefono: str, ruta_archivo: str, nombre_archivo: str, caption: str = ""
+    ) -> bool:
+        """
+        Sube un archivo y lo envía por WhatsApp. Detecta el tipo (imagen o
+        documento genérico) según la extensión del archivo.
+        """
         if not self.access_token or not self.phone_number_id:
             logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
             return False
-        media_id = await self._subir_media(ruta_archivo)
+
+        mime_type, _ = mimetypes.guess_type(nombre_archivo)
+        mime_type = mime_type or "application/octet-stream"
+        es_imagen = mime_type.startswith("image/")
+
+        media_id = await self._subir_media(ruta_archivo, mime_type)
         if not media_id:
             return False
+
         url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": telefono,
-            "type": "document",
-            "document": {"id": media_id, "filename": nombre_archivo},
-        }
+        if es_imagen:
+            contenido = {"id": media_id}
+            if caption:
+                contenido["caption"] = caption
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "image",
+                "image": contenido,
+            }
+        else:
+            contenido = {"id": media_id, "filename": nombre_archivo}
+            if caption:
+                contenido["caption"] = caption
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": telefono,
+                "type": "document",
+                "document": contenido,
+            }
         async with httpx.AsyncClient() as client:
             r = await client.post(url, json=payload, headers=headers)
             if r.status_code != 200:
