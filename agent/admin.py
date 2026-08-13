@@ -31,6 +31,7 @@ from agent.memory import (
     obtener_eventos_atencion,
 )
 from agent.providers import obtener_proveedor
+from agent.tools import resolver_paquete_credito, resolver_paquete_inscripcion, ruta_completa
 
 # Los mensajes de adjuntos recibidos se guardan con una etiqueta al inicio,
 # ej. "[[adjunto:12]] leyenda del usuario", para poder mostrar la imagen/
@@ -116,6 +117,12 @@ ESTILO = """
   .form-nueva button { background:#16a34a; color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; cursor:pointer; }
   .vista-previa { background:#f4f4f6; border-radius:8px; padding:10px 12px; font-size:13px; color:#555; font-style:italic; margin-bottom:10px; }
   .alerta-info { background:#eff6ff; color:#1e3a8a; border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:13px; }
+  .caja-paquetes { background:#fff; border-radius:10px; padding:14px 16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .caja-paquetes h4 { margin:0 0 4px 0; font-size:13px; color:#666; }
+  .caja-paquetes .sub { margin:0 0 12px 0; }
+  .form-paquete { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .form-paquete select { padding:8px 10px; border-radius:8px; border:1px solid #ddd; font-size:13px; }
+  .btn-paquete { background:#7c3aed; color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer; }
 </style>
 """
 
@@ -558,6 +565,26 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
       <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
       <h1>{tel_seguro}{badge}</h1>
       {burbujas}
+      <div class="caja-paquetes">
+        <h4>Enviar documentos (tras evaluar boleta de pago)</h4>
+        <p class="sub" style="margin:0 0 8px 0;">Revisa la boleta adjunta arriba y envía el paquete correspondiente.</p>
+        <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_credito"
+              onsubmit="return confirm('¿Enviar los 3 documentos de crédito (Solicitud, Pagaré, Contrato)?');">
+          <button class="btn-paquete" type="submit">📎 Enviar paquete de crédito</button>
+        </form>
+        <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_inscripcion"
+              onsubmit="return confirm('¿Enviar los documentos de inscripción para el perfil elegido?');">
+          <select name="perfil" required>
+            <option value="">Perfil del socio...</option>
+            <option value="activo">Activo</option>
+            <option value="pensionista">Pensionista</option>
+            <option value="cesante">Cesante</option>
+            <option value="feban">FEBAN</option>
+            <option value="tercero">Tercero</option>
+          </select>
+          <button class="btn-paquete" type="submit">📎 Enviar paquete de inscripción</button>
+        </form>
+      </div>
       <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">
         <textarea name="mensaje" placeholder="Escribe tu respuesta (opcional si adjuntas un archivo)..."></textarea>
         <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png">
@@ -621,6 +648,54 @@ async def responder_chat(
     if algo_enviado:
         # Si un humano responde, la conversación queda en modo humano
         # (el bot no debe interrumpir mientras el equipo está atendiendo).
+        await activar_modo_humano(telefono)
+    return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/chat/{telefono}/enviar_credito")
+async def enviar_paquete_credito_manual(telefono: str, usuario: str = Depends(_verificar_credenciales)):
+    """El equipo envía manualmente el paquete de crédito (Solicitud, Pagaré, Contrato), tras evaluar la boleta."""
+    proveedor = obtener_proveedor()
+    archivos = resolver_paquete_credito()
+    enviados = []
+    for nombre_archivo in archivos:
+        ok = await proveedor.enviar_documento(telefono, ruta_completa(nombre_archivo), nombre_archivo)
+        if ok:
+            enviados.append(nombre_archivo)
+        else:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (paquete de crédito manual)")
+
+    if enviados:
+        registro = "[paquete de crédito enviado] " + ", ".join(enviados)
+        await guardar_mensaje(telefono, "humano", registro)
+        await activar_modo_humano(telefono)
+    return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/chat/{telefono}/enviar_inscripcion")
+async def enviar_paquete_inscripcion_manual(
+    telefono: str,
+    perfil: str = Form(...),
+    usuario: str = Depends(_verificar_credenciales),
+):
+    """El equipo envía manualmente el paquete de inscripción según el perfil, tras evaluar la boleta."""
+    proveedor = obtener_proveedor()
+    archivos = resolver_paquete_inscripcion(perfil)
+    if not archivos:
+        logger.error(f"Perfil desconocido '{perfil}' al enviar paquete de inscripción a {telefono}")
+        return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+    enviados = []
+    for nombre_archivo in archivos:
+        ok = await proveedor.enviar_documento(telefono, ruta_completa(nombre_archivo), nombre_archivo)
+        if ok:
+            enviados.append(nombre_archivo)
+        else:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (paquete de inscripción manual)")
+
+    if enviados:
+        registro = f"[paquete de inscripción enviado, perfil {perfil}] " + ", ".join(enviados)
+        await guardar_mensaje(telefono, "humano", registro)
         await activar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
 
