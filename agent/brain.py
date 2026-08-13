@@ -16,7 +16,13 @@ import logging
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
-from agent.tools import resolver_paquete_credito, resolver_paquete_inscripcion, ruta_completa, verificar_socio
+from agent.tools import (
+    resolver_paquete_credito,
+    resolver_paquete_inscripcion,
+    resolver_info_odontologico,
+    ruta_completa,
+    verificar_socio,
+)
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
@@ -81,6 +87,16 @@ HERRAMIENTAS = [
             },
             "required": ["perfil"],
         },
+    },
+    {
+        "name": "enviar_info_centro_odontologico",
+        "description": (
+            "Envía por WhatsApp la lista de precios (imagen) del Centro "
+            "Odontológico propio de Coosermul BN. Úsala cuando el socio "
+            "elija la opción 'Centro Odontológico' del menú, o pregunte "
+            "por precios o servicios dentales de la cooperativa."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "pedir_boleta_y_ofrecer_asesor",
@@ -240,6 +256,17 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
         ]
         return {
             "resultado_texto": f"Documentos preparados y en cola de envío: {', '.join(archivos)}.",
+            "documentos": documentos,
+            "escalar": False,
+        }
+
+    if nombre == "enviar_info_centro_odontologico":
+        archivos = resolver_info_odontologico()
+        documentos = [
+            {"nombre_archivo": n, "ruta": ruta_completa(n)} for n in archivos
+        ]
+        return {
+            "resultado_texto": f"Documento preparado y en cola de envío: {', '.join(archivos)}.",
             "documentos": documentos,
             "escalar": False,
         }

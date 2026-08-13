@@ -147,6 +147,9 @@ FORMATOS_CREDITO = [
     "7.-Contrato de Credito.pdf",
 ]
 
+# Lista de precios del Centro Odontológico (imagen/PDF informativo).
+FORMATO_ODONTOLOGICO = "Centro Odontologico - Lista de precios.pdf"
+
 KNOWLEDGE_DIR = "knowledge"
 
 
@@ -176,6 +179,11 @@ def resolver_paquete_inscripcion(perfil_socio: str) -> list[str]:
         archivos.append(descuento)
     archivos.extend(FORMATOS_INSCRIPCION_COMUNES)
     return archivos
+
+
+def resolver_info_odontologico() -> list[str]:
+    """Retorna el archivo de la lista de precios del Centro Odontológico."""
+    return [FORMATO_ODONTOLOGICO]
 
 
 def listar_formatos_disponibles() -> list[str]:

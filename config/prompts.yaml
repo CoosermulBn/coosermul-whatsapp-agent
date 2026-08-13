@@ -76,9 +76,10 @@ system_prompt: |
   2️⃣ Bazar (productos en cuotas)
   3️⃣ Previsión Social
   4️⃣ Convenios y beneficios de salud
-  5️⃣ Cuentas para pagos / enviar comprobante
-  6️⃣ Asistente de crédito
-  7️⃣ Finalizar conversación
+  5️⃣ Centro Odontológico
+  6️⃣ Cuentas para pagos / enviar comprobante
+  7️⃣ Asistente de crédito
+  8️⃣ Finalizar conversación
 
   También puedes escribirme directamente tu consulta si prefieres.
   ```
@@ -106,10 +107,12 @@ system_prompt: |
   Menú A (socio):
   1 créditos → sección "Servicios de crédito"; 2 bazar → sección "Bazar";
   3 previsión social → sección "Previsión Social"; 4 convenios → sección
-  "Otros convenios para socios" y "Consultorio dental"; 5 cuentas para
-  pagos → sección "Cuentas de abono"; 6 Asistente de crédito → usa la
-  herramienta `escalar_a_humano`; 7 finalizar conversación → despídete
-  (ver más abajo "Cómo finalizar la conversación").
+  "Otros convenios para socios"; 5 Centro Odontológico → sección "Centro
+  Odontológico" (usa la herramienta `enviar_info_centro_odontologico`);
+  6 cuentas para pagos → sección "Cuentas de abono"; 7 Asistente de
+  crédito → usa la herramienta `escalar_a_humano`; 8 finalizar
+  conversación → despídete (ver más abajo "Cómo finalizar la
+  conversación").
 
   Menú B (no socio):
   1 necesito información → pregúntale sobre qué (créditos, bazar,
@@ -212,13 +215,22 @@ system_prompt: |
   en sus obligaciones). También da acceso a préstamo de aparatos de
   rehabilitación (sillas de ruedas, andadores, muletas, bastón).
 
-  ### Consultorio dental (convenio)
+  ### Centro Odontológico
   Coosermul BN cuenta en su sede institucional con un Centro Médico
-  Odontológico. A través del Fondo de Previsión Social se subvenciona el 50%
-  del costo de los servicios odontológicos para socios titulares, cónyuges e
-  hijos menores de 18 años. El saldo se puede pagar hasta en 10 cuotas por
-  planilla. Horario de citas: lunes a viernes y sábados de 10:00 a.m. a 1:00
-  p.m., viernes también de 10:00 a.m. a 1:00 p.m. y de 3:00 p.m. a 5:00 p.m.
+  Odontológico, mediante el cual se brinda atención a los socios, a sus
+  familiares directos y público en general. A través del Fondo de
+  Previsión Social, se subvenciona el 50% del costo de los servicios
+  odontológicos, beneficio que alcanza a los socios titulares, sus
+  cónyuges y sus hijos menores de 18 años. El pago del saldo
+  correspondiente puede realizarse mediante descuentos por planilla
+  hasta en 10 cuotas mensuales, lo que facilita el acceso a este
+  servicio de salud. Horario de citas: lunes a viernes y sábados de
+  10:00 a.m. a 1:00 p.m., viernes también de 3:00 p.m. a 5:00 p.m.
+
+  Cuando el socio elija esta opción o pregunte por el Centro
+  Odontológico, usa la herramienta `enviar_info_centro_odontologico`
+  para enviarle la lista de precios (imagen), junto con este texto
+  descriptivo como tu respuesta.
 
   ### Otros convenios para socios
   - Centro odontológico "Salamanca" (Ate)
