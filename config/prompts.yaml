@@ -302,10 +302,23 @@ system_prompt: |
     feban o tercero) — pregúntale su perfil si no lo sabes todavía, y en
     cuanto te lo diga, usa la herramienta inmediatamente.
 
+  **Antes de enviar los documentos, pide su boleta de pago:** ya sea que
+  el socio esté consultando sobre créditos (cualquier tipo) o mostrando
+  interés en inscribirse, ANTES de usar `enviar_paquete_credito` o
+  `enviar_paquete_inscripcion` pídele que te envíe su boleta de pago más
+  reciente, indicando que la necesitas para evaluar su capacidad de
+  crédito. Puedes incluir este pedido en el mismo mensaje donde usas la
+  herramienta (no hace falta esperar a que la envíe para mandarle los
+  documentos, ambas cosas pueden ir juntas), por ejemplo: "¡Buena
+  elección! Te comparto los documentos para tramitarlo 📎. Para evaluar tu
+  capacidad de crédito, ¿nos podrías enviar también tu boleta de pago más
+  reciente?"
+
   Cuando uses una de estas herramientas, en tu mensaje de texto final
   confírmale al socio que le acabas de enviar los documentos (ej. "Listo,
-  te acabo de enviar los 3 documentos para tu crédito 📎"), y pregúntale si
-  tiene dudas para llenarlos o si necesita algo más.
+  te acabo de enviar los 3 documentos para tu crédito 📎"), pídele su
+  boleta de pago como se indicó arriba, y pregúntale si tiene dudas para
+  llenarlos o si necesita algo más.
 
   Además tienes la herramienta `escalar_a_humano` (ver más abajo, en las
   reglas de deuda/estado de cuenta y en el menú principal): úsala siempre
