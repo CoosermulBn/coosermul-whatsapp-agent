@@ -302,21 +302,19 @@ system_prompt: |
      (cualquier tipo), o cuando ya sepas su perfil para la inscripción
      (activo, pensionista, cesante, feban o tercero), NO uses
      `enviar_paquete_credito` ni `enviar_paquete_inscripcion` todavía.
-  2. En su lugar, pídele en TEXTO PLANO que te envíe su boleta de pago
-     más reciente, explicando que el equipo la va a evaluar para conocer
-     su capacidad de crédito. Por ejemplo:
-     "¡Buena elección! Antes de enviarte los documentos, necesitamos
-     evaluar tu capacidad de crédito. ¿Nos podrías enviar tu boleta de
-     pago más reciente? En cuanto la evaluemos, te enviaremos los
-     documentos."
-     Inmediatamente después, en ese MISMO turno, usa la herramienta
-     `preguntar_hablar_con_asesor` para ofrecerle con botones (no en
-     texto) la opción de hablar ahora mismo con el Asistente de crédito,
-     por ejemplo con el mensaje: "Si prefieres, también puedo
-     comunicarte ahora mismo con nuestro Asistente de crédito para que
-     te ayude directamente." NO escribas esta pregunta de Sí/No como
-     texto plano ni la repitas en tu respuesta final — los botones ya la
-     muestran.
+  2. En su lugar, usa la herramienta `pedir_boleta_y_ofrecer_asesor`
+     (con el parámetro `tramite` describiendo brevemente de qué se
+     trata, ej. "tu inscripción como pensionista" o "tu crédito a sola
+     firma"). Esta herramienta ya arma el mensaje completo (pedido de
+     boleta de pago + botones Sí/No para hablar con el Asistente de
+     crédito) — NO escribas tú mismo el pedido de la boleta ni la
+     pregunta de Sí/No como texto plano, ni los repitas en tu respuesta
+     final; la herramienta ya se encarga de todo eso. Tu respuesta de
+     texto en ese turno debe ser breve (ej. "¡Perfecto!" o "¡Buena
+     elección!"), sin repetir el pedido de la boleta ni la pregunta de
+     Sí/No, y sin agregar cosas como "¿hay algo más en que ayudarte?" en
+     este punto — el pedido de la boleta ES la respuesta principal, que
+     ya se envía aparte con los botones.
   3. Cuando el socio envíe su boleta (imagen o documento), el sistema ya
      la recibe y le confirma automáticamente que pasó a evaluación — tú
      no necesitas hacer nada más en ese momento ni insistir en el tema.

@@ -83,6 +83,35 @@ HERRAMIENTAS = [
         },
     },
     {
+        "name": "pedir_boleta_y_ofrecer_asesor",
+        "description": (
+            "Envía el mensaje (con botones Sí/No) pidiéndole al socio su "
+            "boleta de pago para evaluar su capacidad de crédito, y "
+            "ofreciéndole hablar ahora mismo con el Asistente de crédito. "
+            "El texto exacto y los botones ya están armados por el "
+            "sistema — tú solo indicas brevemente de qué trámite se "
+            "trata. Úsala SIEMPRE que el socio confirme que quiere "
+            "tramitar un crédito en efectivo, o en cuanto sepas su perfil "
+            "para la inscripción — en vez de escribir tú mismo el pedido "
+            "de la boleta como texto plano, usa esta herramienta para "
+            "garantizar que el mensaje sea completo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tramite": {
+                    "type": "string",
+                    "description": (
+                        "Breve descripción del trámite, ej. 'tu "
+                        "inscripción como pensionista' o 'tu crédito a "
+                        "sola firma'"
+                    ),
+                }
+            },
+            "required": ["tramite"],
+        },
+    },
+    {
         "name": "preguntar_hablar_con_asesor",
         "description": (
             "Muestra dos botones táctiles (Sí / No) para preguntarle al "
@@ -215,6 +244,29 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "escalar": False,
         }
 
+    if nombre == "pedir_boleta_y_ofrecer_asesor":
+        tramite = entrada.get("tramite", "").strip() or "tu trámite"
+        mensaje_botones = (
+            f"Antes de enviarte los documentos para {tramite}, necesitamos "
+            "evaluar tu capacidad de crédito. ¿Nos podrías enviar tu boleta "
+            "de pago (o de pensión) más reciente? En cuanto la evaluemos, "
+            "te enviaremos los documentos.\n\n"
+            "Si prefieres, también puedo comunicarte ahora mismo con "
+            "nuestro Asistente de crédito para que te ayude directamente."
+        )
+        return {
+            "resultado_texto": "Mensaje con botones mostrado al socio (pedido de boleta + opción de asesor).",
+            "documentos": [],
+            "escalar": False,
+            "botones": {
+                "mensaje": mensaje_botones,
+                "opciones": [
+                    {"id": "asesor_si", "titulo": "Sí"},
+                    {"id": "asesor_no", "titulo": "No"},
+                ],
+            },
+        }
+
     if nombre == "preguntar_hablar_con_asesor":
         mensaje_botones = entrada.get(
             "mensaje", "¿Quieres que te comunique ahora mismo con nuestro Asistente de crédito?"
@@ -298,14 +350,21 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             if response.stop_reason != "tool_use":
                 texto = _texto_de(response)
                 if not texto:
-                    logger.warning("Claude no devolvio texto (solo bloques no-texto)")
-                    return {
-                        "texto": obtener_mensaje_error(),
-                        "documentos": documentos_totales,
-                        "escalar": escalar_total,
-                        "motivo_escalamiento": motivo_total,
-                        "botones": botones_total,
-                    }
+                    # Si ya se ejecutó una herramienta útil (documentos
+                    # preparados o botones armados), un texto vacío no es
+                    # un error real — usamos un remate corto en vez del
+                    # mensaje de error genérico.
+                    if documentos_totales or botones_total:
+                        texto = "¡Listo!"
+                    else:
+                        logger.warning("Claude no devolvio texto (solo bloques no-texto)")
+                        return {
+                            "texto": obtener_mensaje_error(),
+                            "documentos": documentos_totales,
+                            "escalar": escalar_total,
+                            "motivo_escalamiento": motivo_total,
+                            "botones": botones_total,
+                        }
                 logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
                 return {
                     "texto": texto,
