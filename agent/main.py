@@ -53,8 +53,9 @@ PORT = int(os.getenv("PORT", 8000))
 # Respuesta fija cuando el socio envía un documento/imagen (ej. comprobante
 # de pago). No pasa por Claude para garantizar el mensaje exacto siempre.
 MENSAJE_COMPROBANTE_RECIBIDO = (
-    "¡Gracias, lo recibimos! 📄 Tu documento pasará a Contabilidad para su "
-    "convalidación. Si necesitas algo más mientras tanto, escríbenos."
+    "¡Gracias, lo recibimos! 📄 Tu documento pasará a Contabilidad y/o "
+    "Créditos. Le estaremos informando sobre su trámite. Si necesitas algo "
+    'más escribe "Menú" para regresar al menú inicial.'
 )
 
 
