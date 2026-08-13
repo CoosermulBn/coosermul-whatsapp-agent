@@ -140,11 +140,12 @@ FORMATOS_INSCRIPCION_COMUNES = [
     "8.-FICHA DE INSCRIPCIÓN FPS.pdf",
 ]
 
-# Paquete B: crédito en efectivo — siempre estos 3, sin importar el tipo/monto
+# Paquete B: crédito en efectivo — siempre estos 4, sin importar el tipo/monto
 FORMATOS_CREDITO = [
     "5.-SOLICITUD DE CREDITOS.pdf",
     "4.-Pagare.pdf",
     "7.-Contrato de Credito.pdf",
+    "6.- Declaración Jurada de Direccion.pdf",
 ]
 
 # Lista de precios del Centro Odontológico (imagen/PDF informativo).
