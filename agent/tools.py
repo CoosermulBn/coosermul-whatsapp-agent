@@ -137,7 +137,7 @@ FORMATOS_DESCUENTO = {
 # Documentos fijos adicionales para el paquete de inscripción (todos los perfiles)
 FORMATOS_INSCRIPCION_COMUNES = [
     "6.- Declaración Jurada de Direccion.pdf",
-    "8.-FICHA DE INSCRIPCCION FPS.pdf",
+    "8.-FICHA DE INSCRIPCIÓN FPS.pdf",
 ]
 
 # Paquete B: crédito en efectivo — siempre estos 3, sin importar el tipo/monto
