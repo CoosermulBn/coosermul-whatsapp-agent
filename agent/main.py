@@ -58,6 +58,14 @@ MENSAJE_COMPROBANTE_RECIBIDO = (
     'más escribe "Menú" para regresar al menú inicial.'
 )
 
+# Respuesta fija cuando el socio presiona el botón "Sí" para hablar con el
+# Asistente de crédito. No pasa por Claude: garantiza que SIEMPRE se
+# escale a un humano, sin depender de que el modelo interprete el botón.
+MENSAJE_ASESOR_CONFIRMADO = (
+    "¡Listo! 🙌 Ya avisé a nuestro Asistente de crédito, en breve te "
+    "atenderá aquí mismo en este chat."
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -135,6 +143,23 @@ async def webhook_handler(request: Request):
                 logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
                 continue
 
+            # Botón "Sí, hablar con un asesor": escalamos DIRECTO, sin pasar
+            # por Claude, para garantizar que siempre funcione igual.
+            if msg.tipo == "boton" and msg.boton_id == "asesor_si":
+                logger.info(f"Boton 'asesor_si' presionado por {msg.telefono}")
+                respuesta = MENSAJE_ASESOR_CONFIRMADO
+                await guardar_mensaje(msg.telefono, "user", f"[botón] {msg.texto or 'Sí'}")
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await activar_modo_humano(msg.telefono)
+                logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
+                continue
+
+            # Botón "No": lo tratamos como un pedido de volver al menú, y
+            # sigue el flujo normal de abajo (pasa por Claude como texto).
+            if msg.tipo == "boton" and msg.boton_id == "asesor_no":
+                msg.texto = "No, gracias. Muéstrame el menú."
+
             # Mensajes de texto vacíos: no hay nada que procesar
             if not msg.texto:
                 continue
@@ -173,6 +198,14 @@ async def webhook_handler(request: Request):
 
             # Enviar respuesta por WhatsApp via el proveedor
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
+
+            # Si Claude pidió mostrar los botones Sí/No (ej. para ofrecer
+            # hablar con un asesor), los enviamos como mensaje aparte.
+            botones = resultado.get("botones")
+            if botones:
+                await proveedor.enviar_botones(
+                    msg.telefono, botones["mensaje"], botones["opciones"]
+                )
 
             logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
 

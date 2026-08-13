@@ -18,9 +18,10 @@ class MensajeEntrante:
     texto: str          # Contenido del mensaje (o el caption, si es un adjunto)
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
-    tipo: str = "text"  # "text" | "document" | "image" — tipo de contenido recibido
+    tipo: str = "text"  # "text" | "document" | "image" | "boton" — tipo de contenido recibido
     media_id: str = ""       # ID del adjunto en el proveedor (para descargarlo)
     nombre_archivo: str = "" # Nombre de archivo original, si el proveedor lo da
+    boton_id: str = ""       # ID del botón presionado (si tipo == "boton")
 
 
 class ProveedorWhatsApp(ABC):
@@ -51,6 +52,14 @@ class ProveedorWhatsApp(ABC):
         Retorna (contenido_bytes, mime_type) o None si falla.
         """
         return None
+
+    async def enviar_botones(self, telefono: str, texto: str, opciones: list[dict]) -> bool:
+        """
+        Envía un mensaje con botones táctiles de respuesta rápida.
+        `opciones` es una lista de hasta 3 dicts {"id": str, "titulo": str}.
+        Retorna True si fue exitoso.
+        """
+        return False
 
     async def enviar_plantilla(
         self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str]

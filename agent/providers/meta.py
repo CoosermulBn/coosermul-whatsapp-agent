@@ -70,6 +70,19 @@ class ProveedorMeta(ProveedorWhatsApp):
                             media_id=adjunto.get("id", ""),
                             nombre_archivo=adjunto.get("filename", ""),
                         ))
+                    elif tipo_msg == "interactive":
+                        # El socio presionó un botón de respuesta rápida.
+                        interactivo = msg.get("interactive", {})
+                        if interactivo.get("type") == "button_reply":
+                            button_reply = interactivo.get("button_reply", {})
+                            mensajes.append(MensajeEntrante(
+                                telefono=remitente,
+                                texto=button_reply.get("title", ""),
+                                mensaje_id=msg.get("id", ""),
+                                es_propio=False,
+                                tipo="boton",
+                                boton_id=button_reply.get("id", ""),
+                            ))
         return mensajes
 
     async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
@@ -160,6 +173,39 @@ class ProveedorMeta(ProveedorWhatsApp):
             r = await client.post(url, json=payload, headers=headers)
             if r.status_code != 200:
                 logger.error(f"Error enviando documento via Meta API: {r.status_code} — {r.text}")
+            return r.status_code == 200
+
+    async def enviar_botones(self, telefono: str, texto: str, opciones: list[dict]) -> bool:
+        """
+        Envía un mensaje interactivo con hasta 3 botones táctiles de
+        respuesta rápida. `opciones` es una lista de {"id": str, "titulo": str}.
+        """
+        if not self.access_token or not self.phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
+            return False
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        botones = [
+            {"type": "reply", "reply": {"id": o["id"], "title": o["titulo"][:20]}}
+            for o in opciones[:3]
+        ]
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": texto},
+                "action": {"buttons": botones},
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code != 200:
+                logger.error(f"Error enviando botones via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
 
     async def enviar_plantilla(

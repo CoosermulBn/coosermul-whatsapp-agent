@@ -83,6 +83,35 @@ HERRAMIENTAS = [
         },
     },
     {
+        "name": "preguntar_hablar_con_asesor",
+        "description": (
+            "Muestra dos botones táctiles (Sí / No) para preguntarle al "
+            "socio si quiere que lo comuniques AHORA MISMO con el "
+            "Asistente de crédito (asesor humano), en vez de escribir la "
+            "pregunta como texto plano. Úsala cada vez que le ofrezcas "
+            "esta opción explícitamente (ej. después de pedirle su boleta "
+            "de pago). En tu respuesta de texto final de ese mismo turno "
+            "NO repitas la pregunta '¿quieres hablar con un asesor?' — los "
+            "botones ya la muestran por separado; solo incluye lo demás "
+            "que tengas que decir antes de eso."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "mensaje": {
+                    "type": "string",
+                    "description": (
+                        "Texto que acompaña a los botones, ej. 'Si "
+                        "prefieres, también puedo comunicarte ahora mismo "
+                        "con nuestro Asistente de crédito para que te "
+                        "ayude directamente.'"
+                    ),
+                }
+            },
+            "required": ["mensaje"],
+        },
+    },
+    {
         "name": "escalar_a_humano",
         "description": (
             "Avisa al equipo humano de Coosermul BN que este socio necesita "
@@ -186,6 +215,23 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "escalar": False,
         }
 
+    if nombre == "preguntar_hablar_con_asesor":
+        mensaje_botones = entrada.get(
+            "mensaje", "¿Quieres que te comunique ahora mismo con nuestro Asistente de crédito?"
+        )
+        return {
+            "resultado_texto": "Botones Sí/No mostrados al socio.",
+            "documentos": [],
+            "escalar": False,
+            "botones": {
+                "mensaje": mensaje_botones,
+                "opciones": [
+                    {"id": "asesor_si", "titulo": "Sí"},
+                    {"id": "asesor_no", "titulo": "No"},
+                ],
+            },
+        }
+
     if nombre == "escalar_a_humano":
         motivo = entrada.get("motivo", "El socio pidió hablar con un asesor.")
         return {
@@ -213,7 +259,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     Returns:
         {"texto": str, "documentos": [{"nombre_archivo": str, "ruta": str}, ...]}
     """
-    vacio = {"texto": obtener_mensaje_fallback(), "documentos": [], "escalar": False, "motivo_escalamiento": ""}
+    vacio = {"texto": obtener_mensaje_fallback(), "documentos": [], "escalar": False, "motivo_escalamiento": "", "botones": None}
     if not mensaje or not mensaje.strip():
         return vacio
 
@@ -235,6 +281,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     documentos_totales: list[dict] = []
     escalar_total = False
     motivo_total = ""
+    botones_total: dict | None = None
 
     try:
         # Hasta 2 vueltas: 1) Claude puede pedir usar una herramienta,
@@ -257,6 +304,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                         "documentos": documentos_totales,
                         "escalar": escalar_total,
                         "motivo_escalamiento": motivo_total,
+                        "botones": botones_total,
                     }
                 logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
                 return {
@@ -264,6 +312,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                     "documentos": documentos_totales,
                     "escalar": escalar_total,
                     "motivo_escalamiento": motivo_total,
+                    "botones": botones_total,
                 }
 
             # Claude pidió usar una o más herramientas: las ejecutamos y
@@ -278,6 +327,8 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                     if resultado.get("escalar"):
                         escalar_total = True
                         motivo_total = resultado.get("motivo", "")
+                    if resultado.get("botones"):
+                        botones_total = resultado["botones"]
                     resultados_tool.append({
                         "type": "tool_result",
                         "tool_use_id": bloque.id,
@@ -292,6 +343,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             "documentos": documentos_totales,
             "escalar": escalar_total,
             "motivo_escalamiento": motivo_total,
+            "botones": botones_total,
         }
 
     except Exception:
@@ -301,4 +353,5 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             "documentos": documentos_totales,
             "escalar": escalar_total,
             "motivo_escalamiento": motivo_total,
+            "botones": botones_total,
         }
