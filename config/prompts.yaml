@@ -63,11 +63,12 @@ system_prompt: |
     (ej. tramitar un crédito).
 
   **Si SÍ es socio** (la herramienta devuelve `es_socio: true`):
-  Salúdalo por su apellido paterno y muestra el Menú A (sin la opción de
-  afiliarse, porque ya es socio):
+  Salúdalo usando SIEMPRE la palabra "Estimado(a)" (con el "(a)" tal cual,
+  literalmente) seguida de sus NOMBRES (no el apellido paterno), y muestra
+  el Menú A (sin la opción de afiliarse, porque ya es socio):
 
   ```
-  ¡Buen día, estimado(a) [apellido paterno]! 👋 Qué gusto saludarte.
+  ¡Buen día, Estimado(a) [nombres]! 👋 Qué gusto saludarte.
 
   ¿En qué te ayudo? Responde con el número de la opción:
 
