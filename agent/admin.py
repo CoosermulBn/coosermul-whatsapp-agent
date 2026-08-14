@@ -36,6 +36,8 @@ from agent.tools import (
     resolver_paquete_inscripcion,
     resolver_cuentas_abono,
     ruta_completa,
+    buscar_socios,
+    identificar_socio_por_telefono,
 )
 
 # Los mensajes de adjuntos recibidos se guardan con una etiqueta al inicio,
@@ -87,6 +89,7 @@ ESTILO = """
   .conv { background:#fff; border-radius:10px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); text-decoration:none; display:block; color:#222; position:relative; }
   .conv:hover { box-shadow:0 2px 8px rgba(0,0,0,.12); }
   .tel { font-weight:600; }
+  .nombre-socio { font-weight:600; }
   .preview { color:#555; font-size:14px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .meta { color:#999; font-size:12px; margin-top:4px; }
   .empty { color:#888; padding:40px; text-align:center; }
@@ -124,6 +127,12 @@ ESTILO = """
   .form-nueva button { background:#16a34a; color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; cursor:pointer; }
   .vista-previa { background:#f4f4f6; border-radius:8px; padding:10px 12px; font-size:13px; color:#555; font-style:italic; margin-bottom:10px; }
   .alerta-info { background:#eff6ff; color:#1e3a8a; border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:13px; }
+  .buscar-socio-wrap { position:relative; }
+  .resultados-busqueda { display:none; position:absolute; z-index:10; left:0; right:0; top:100%; background:#fff; border:1px solid #ddd; border-radius:8px; margin-top:4px; max-height:220px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.12); }
+  .resultado-item { padding:8px 12px; font-size:13px; font-weight:normal; cursor:pointer; border-bottom:1px solid #eee; }
+  .resultado-item:last-child { border-bottom:none; }
+  .resultado-item:hover { background:#f4f4f6; }
+  .resultado-item .tel { color:#888; }
   .caja-paquetes { background:#fff; border-radius:10px; padding:14px 16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
   .caja-paquetes h4 { margin:0 0 4px 0; font-size:13px; color:#666; }
   .caja-paquetes .sub { margin:0 0 12px 0; }
@@ -327,6 +336,8 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     filas = ""
     for c in conversaciones:
         tel = html.escape(c["telefono"] or "(desconocido)")
+        socio = identificar_socio_por_telefono(c["telefono"] or "")
+        nombre_html = f'<span class="nombre-socio">{html.escape(socio["nombre"])}</span> · ' if socio else ""
         ultimo_mensaje = c["ultimo_mensaje"] or ""
         if PATRON_ADJUNTO.match(ultimo_mensaje):
             ultimo_mensaje = ("📎 " + PATRON_ADJUNTO.sub("", ultimo_mensaje)).strip()
@@ -338,7 +349,7 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
         badge = '<span class="badge">Necesita humano</span>' if c.get("modo_humano") else ""
         filas += f"""
         <a class="conv" href="/admin/chat/{tel}">
-          <div class="tel">{tel}{badge}</div>
+          <div class="tel">{nombre_html}{tel}{badge}</div>
           <div class="preview">{prefijo}{preview}</div>
           <div class="meta">{fecha} · {c['total_mensajes']} mensajes</div>
         </a>
@@ -365,6 +376,13 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
     </body>
     </html>
     """
+
+
+@router.get("/admin/api/buscar_socio")
+async def api_buscar_socio(q: str = "", usuario: str = Depends(_verificar_credenciales)):
+    """Busca socios del padrón por nombre/DNI (con celular registrado), para /admin/nueva."""
+    resultados = buscar_socios(q)
+    return JSONResponse({"socios": resultados})
 
 
 @router.get("/admin/nueva", response_class=HTMLResponse)
@@ -413,8 +431,12 @@ async def nueva_conversacion_form(error: str = "", usuario: str = Depends(_verif
       </div>
       {mensaje_error}
       <form method="post" action="/admin/nueva" class="form-nueva">
+        <label class="buscar-socio-wrap">Buscar socio del padrón (nombre o DNI)
+          <input type="text" id="buscar-socio" placeholder="Escribe al menos 3 letras..." autocomplete="off">
+          <div id="resultados-busqueda" class="resultados-busqueda"></div>
+        </label>
         <label>Número de WhatsApp (con código de país, sin +, ej. 51987654321)
-          <input type="text" name="telefono" required pattern="[0-9]+" placeholder="51987654321">
+          <input type="text" name="telefono" id="input-telefono" required pattern="[0-9]+" placeholder="51987654321">
         </label>
         <label>Plantilla
           <select name="plantilla" id="select-plantilla" required>
@@ -437,6 +459,51 @@ async def nueva_conversacion_form(error: str = "", usuario: str = Depends(_verif
               inp.required = activo;
             }});
           }});
+        }});
+
+        var inputBuscar = document.getElementById('buscar-socio');
+        var divResultados = document.getElementById('resultados-busqueda');
+        var inputTelefono = document.getElementById('input-telefono');
+        var temporizador = null;
+
+        inputBuscar.addEventListener('input', function () {{
+          clearTimeout(temporizador);
+          var q = inputBuscar.value.trim();
+          if (q.length < 3) {{ divResultados.style.display = 'none'; divResultados.innerHTML = ''; return; }}
+          temporizador = setTimeout(function () {{
+            fetch('/admin/api/buscar_socio?q=' + encodeURIComponent(q)).then(function (r) {{ return r.json(); }}).then(function (data) {{
+              var socios = data.socios || [];
+              if (socios.length === 0) {{
+                divResultados.innerHTML = '<div class="resultado-item">Sin resultados</div>';
+                divResultados.style.display = 'block';
+                return;
+              }}
+              divResultados.innerHTML = socios.map(function (s) {{
+                return '<div class="resultado-item" data-nombre="' + s.nombre.replace(/"/g, '&quot;') + '" data-celular="' + s.celular + '">' +
+                  '<strong>' + s.nombre + '</strong><br><span class="tel">' + s.celular + ' &middot; código ' + s.codigo + '</span></div>';
+              }}).join('');
+              divResultados.style.display = 'block';
+            }}).catch(function () {{}});
+          }}, 300);
+        }});
+
+        divResultados.addEventListener('mousedown', function (e) {{
+          var item = e.target.closest('.resultado-item');
+          if (!item || !item.hasAttribute('data-celular')) return;
+          var nombre = item.getAttribute('data-nombre');
+          var celular = item.getAttribute('data-celular');
+          inputTelefono.value = celular;
+          inputBuscar.value = nombre;
+          divResultados.style.display = 'none';
+          var bloqueActivo = document.querySelector('.bloque-plantilla[style*="display: block"]');
+          if (bloqueActivo) {{
+            var primerInput = bloqueActivo.querySelector('input');
+            if (primerInput) primerInput.value = nombre;
+          }}
+        }});
+
+        document.addEventListener('click', function (e) {{
+          if (e.target !== inputBuscar) divResultados.style.display = 'none';
         }});
       </script>
     </body>
@@ -546,6 +613,8 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
         burbujas = '<div class="empty">Sin mensajes.</div>'
 
     tel_seguro = html.escape(telefono)
+    socio = identificar_socio_por_telefono(telefono)
+    titulo_chat = f"{html.escape(socio['nombre'])} ({tel_seguro})" if socio else tel_seguro
     badge = '<span class="badge">Necesita humano</span>' if en_modo_humano else ""
     boton_liberar = (
         f'<form method="post" action="/admin/chat/{tel_seguro}/liberar">'
@@ -561,7 +630,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
 
     return f"""
     <html>
-    <head><title>Chat con {tel_seguro} — Coosermul BN</title>{ESTILO}</head>
+    <head><title>Chat con {titulo_chat} — Coosermul BN</title>{ESTILO}</head>
     <body>
       <div class="toolbar">
         <a class="back" href="/admin">&larr; Volver a conversaciones</a>
@@ -570,7 +639,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
       <div id="alerta-pendientes" class="alerta"></div>
       <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
-      <h1>{tel_seguro}{badge}</h1>
+      <h1>{titulo_chat}{badge}</h1>
       {burbujas}
       <div class="caja-paquetes">
         <h4>Enviar documentos (tras evaluar boleta de pago)</h4>

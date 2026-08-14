@@ -17,10 +17,23 @@ logger = logging.getLogger("agentkit")
 
 PADRON_PATH = os.path.join("data", "padron.csv")
 _padron_cache: dict[str, dict] | None = None
+_padron_por_telefono_cache: dict[str, dict] | None = None
 
 
 def _normalizar_dni(dni: str) -> str:
     return re.sub(r"\D", "", dni or "")
+
+
+def _normalizar_telefono(celular: str) -> str:
+    """
+    Normaliza un celular peruano al formato con código de país que usa
+    WhatsApp (ej. "999613769" -> "51999613769"). Si ya tiene código de
+    país o el formato es distinto, lo deja tal cual (solo dígitos).
+    """
+    digitos = re.sub(r"\D", "", celular or "")
+    if len(digitos) == 9 and digitos.startswith("9"):
+        return "51" + digitos
+    return digitos
 
 
 def _cargar_padron() -> dict[str, dict]:
@@ -40,6 +53,44 @@ def _cargar_padron() -> dict[str, dict]:
     _padron_cache = padron
     logger.info(f"Padron de socios cargado: {len(padron)} registros")
     return padron
+
+
+def _cargar_padron_por_telefono() -> dict[str, dict]:
+    """Índice del padrón por celular normalizado (con código de país), para
+    reconocer automáticamente a un socio por su número de WhatsApp."""
+    global _padron_por_telefono_cache
+    if _padron_por_telefono_cache is not None:
+        return _padron_por_telefono_cache
+    indice = {}
+    for registro in _cargar_padron().values():
+        telefono = _normalizar_telefono(registro.get("celular", ""))
+        if telefono:
+            indice[telefono] = registro
+    _padron_por_telefono_cache = indice
+    return indice
+
+
+def identificar_socio_por_telefono(telefono: str) -> dict | None:
+    """
+    Busca en el padrón un socio cuyo celular coincida con este número de
+    WhatsApp. Retorna {"nombre", "codigo", "dni"} o None si no hay match.
+    """
+    indice = _cargar_padron_por_telefono()
+    registro = indice.get(re.sub(r"\D", "", telefono or ""))
+    if not registro:
+        return None
+    nombre_completo = " ".join(
+        filter(None, [
+            (registro.get("nombres") or "").strip(),
+            (registro.get("apellido_paterno") or "").strip(),
+            (registro.get("apellido_materno") or "").strip(),
+        ])
+    )
+    return {
+        "nombre": nombre_completo.title(),
+        "codigo": (registro.get("codigo") or "").strip(),
+        "dni": _normalizar_dni(registro.get("dni", "")),
+    }
 
 
 def verificar_socio(dni: str) -> dict:
@@ -63,6 +114,41 @@ def verificar_socio(dni: str) -> dict:
         "nombres": (registro.get("nombres") or "").strip().title(),
         "codigo": (registro.get("codigo") or "").strip(),
     }
+
+
+def buscar_socios(consulta: str, limite: int = 8) -> list[dict]:
+    """
+    Busca socios en el padrón por nombre, apellido o DNI, para el
+    autocompletado de '/admin/nueva'. Solo retorna socios que tienen un
+    celular registrado (sin eso no se les puede escribir por WhatsApp).
+    """
+    consulta_norm = (consulta or "").strip().lower()
+    if len(consulta_norm) < 3:
+        return []
+
+    padron = _cargar_padron()
+    resultados = []
+    for dni, registro in padron.items():
+        celular = _normalizar_telefono(registro.get("celular", ""))
+        if not celular:
+            continue
+        nombre_completo = " ".join(
+            filter(None, [
+                (registro.get("nombres") or "").strip(),
+                (registro.get("apellido_paterno") or "").strip(),
+                (registro.get("apellido_materno") or "").strip(),
+            ])
+        )
+        if consulta_norm in nombre_completo.lower() or consulta_norm in dni:
+            resultados.append({
+                "dni": dni,
+                "nombre": nombre_completo.title(),
+                "codigo": (registro.get("codigo") or "").strip(),
+                "celular": celular,
+            })
+            if len(resultados) >= limite:
+                break
+    return resultados
 
 
 def cargar_info_negocio() -> dict:
