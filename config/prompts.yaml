@@ -233,8 +233,11 @@ system_prompt: |
   cónyuges y sus hijos menores de 18 años. El pago del saldo
   correspondiente puede realizarse mediante descuentos por planilla
   hasta en 10 cuotas mensuales, lo que facilita el acceso a este
-  servicio de salud. Horario de citas: lunes a viernes y sábados de
-  10:00 a.m. a 1:00 p.m., viernes también de 3:00 p.m. a 5:00 p.m.
+  servicio de salud.
+
+  Horario de citas:
+  De lunes a sábados: 10:00 a.m. a 1:00 p.m.
+  Viernes también: 3:00 p.m. a 5:00 p.m.
 
   Cuando el socio elija esta opción o pregunte por el Centro
   Odontológico, usa la herramienta `enviar_info_centro_odontologico`
