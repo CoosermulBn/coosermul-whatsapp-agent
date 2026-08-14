@@ -103,7 +103,7 @@ HERRAMIENTAS = [
         "description": (
             "Envía el mensaje (con botones Sí/No) pidiéndole al socio su "
             "boleta de pago para evaluar su capacidad de crédito, y "
-            "ofreciéndole hablar ahora mismo con el Asistente de crédito. "
+            "ofreciéndole hablar ahora mismo con el Asesor personal. "
             "El texto exacto y los botones ya están armados por el "
             "sistema — tú solo indicas brevemente de qué trámite se "
             "trata. Úsala SIEMPRE que el socio confirme que quiere "
@@ -132,7 +132,7 @@ HERRAMIENTAS = [
         "description": (
             "Muestra dos botones táctiles (Sí / No) para preguntarle al "
             "socio si quiere que lo comuniques AHORA MISMO con el "
-            "Asistente de crédito (asesor humano), en vez de escribir la "
+            "Asesor personal (asesor humano), en vez de escribir la "
             "pregunta como texto plano. Úsala cada vez que le ofrezcas "
             "esta opción explícitamente (ej. después de pedirle su boleta "
             "de pago). En tu respuesta de texto final de ese mismo turno "
@@ -148,7 +148,7 @@ HERRAMIENTAS = [
                     "description": (
                         "Texto que acompaña a los botones, ej. 'Si "
                         "prefieres, también puedo comunicarte ahora mismo "
-                        "con nuestro Asistente de crédito para que te "
+                        "con nuestro Asesor personal para que te "
                         "ayude directamente.'"
                     ),
                 }
@@ -279,7 +279,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "de pago (o de pensión) más reciente? En cuanto la evaluemos, "
             "te enviaremos los documentos.\n\n"
             "Si prefieres, también puedo comunicarte ahora mismo con "
-            "nuestro Asistente de crédito para que te ayude directamente."
+            "nuestro Asesor personal para que te ayude directamente."
         )
         return {
             "resultado_texto": "Mensaje con botones mostrado al socio (pedido de boleta + opción de asesor).",
@@ -296,7 +296,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
 
     if nombre == "preguntar_hablar_con_asesor":
         mensaje_botones = entrada.get(
-            "mensaje", "¿Quieres que te comunique ahora mismo con nuestro Asistente de crédito?"
+            "mensaje", "¿Quieres que te comunique ahora mismo con nuestro Asesor personal?"
         )
         return {
             "resultado_texto": "Botones Sí/No mostrados al socio.",

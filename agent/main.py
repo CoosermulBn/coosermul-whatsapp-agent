@@ -59,10 +59,10 @@ MENSAJE_COMPROBANTE_RECIBIDO = (
 )
 
 # Respuesta fija cuando el socio presiona el botón "Sí" para hablar con el
-# Asistente de crédito. No pasa por Claude: garantiza que SIEMPRE se
+# Asesor personal. No pasa por Claude: garantiza que SIEMPRE se
 # escale a un humano, sin depender de que el modelo interprete el botón.
 MENSAJE_ASESOR_CONFIRMADO = (
-    "¡Listo! 🙌 Ya avisé a nuestro Asistente de crédito, en breve te "
+    "¡Listo! 🙌 Ya avisé a nuestro Asesor personal, en breve te "
     "atenderá aquí mismo en este chat."
 )
 
