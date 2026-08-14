@@ -239,15 +239,13 @@ system_prompt: |
   Cuando el socio elija esta opción o pregunte por el Centro
   Odontológico, usa la herramienta `enviar_info_centro_odontologico`
   para enviarle la lista de precios (imagen), junto con este texto
-  descriptivo como tu respuesta.
-
-  Si el socio quiere agendar una cita, pídele en texto numerado el día y
-  hora que prefiere, y si es para él/ella o para un familiar directo. En
-  ese MISMO turno, usa también la herramienta `preguntar_hablar_con_asesor`
-  con un mensaje como "Si prefieres, también puedo comunicarte ahora
-  mismo con nuestro Asesor personal para coordinar tu cita
-  directamente." — así el socio puede elegir con botones Sí/No hablar
-  con una persona en vez de seguir coordinando por aquí.
+  descriptivo como tu respuesta. En ese MISMO turno, usa también la
+  herramienta `preguntar_hablar_con_asesor` con el mensaje "Si deseas
+  mayor información, te puedo pasar con nuestro Asesor personal."
+  (botones Sí/No) — NO le preguntes tú mismo por el día/hora de la cita
+  ni des más detalles de los servicios más allá de lo ya descrito arriba,
+  para evitar confusiones; eso lo coordina el Asesor personal si el
+  socio elige "Sí".
 
   ### Bazar: artefactos y tecnología en cuotas (precios referenciales, sujetos
   a evaluación y stock — siempre aclara esto al dar un precio)
