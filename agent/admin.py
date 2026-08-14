@@ -50,7 +50,9 @@ PATRON_ADJUNTO = re.compile(r"^\[\[adjunto:(\d+)\]\]\s*")
 PLANTILLAS_DISPONIBLES = {
     "recordatorio_pago": {
         "etiqueta": "Recordatorio de pago",
-        "idioma": "es",
+        # Meta la registró con el código de idioma "en" (aunque el texto
+        # aprobado está en español) — debe coincidir exacto o el envío falla.
+        "idioma": "en",
         "variables": ["Nombre del socio", "Monto (S/)", "Fecha de vencimiento"],
         "vista_previa": (
             "Hola {{1}}, te recordamos que tienes una cuota pendiente de S/ {{2}} "
@@ -60,7 +62,7 @@ PLANTILLAS_DISPONIBLES = {
     },
     "tramite_aprobado": {
         "etiqueta": "Trámite / crédito aprobado",
-        "idioma": "es",
+        "idioma": "es_PE",
         "variables": ["Nombre del socio", "Trámite (ej. solicitud de crédito)"],
         "vista_previa": (
             "Hola {{1}}, te informamos que tu {{2}} ha sido aprobado(a). Nuestro "
