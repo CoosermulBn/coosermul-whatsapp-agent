@@ -495,7 +495,8 @@ async def nueva_conversacion_form(error: str = "", usuario: str = Depends(_verif
           inputTelefono.value = celular;
           inputBuscar.value = nombre;
           divResultados.style.display = 'none';
-          var bloqueActivo = document.querySelector('.bloque-plantilla[style*="display: block"]');
+          var bloqueActivo = null;
+          bloques.forEach(function (b) {{ if (b.style.display === 'block') bloqueActivo = b; }});
           if (bloqueActivo) {{
             var primerInput = bloqueActivo.querySelector('input');
             if (primerInput) primerInput.value = nombre;
