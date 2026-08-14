@@ -72,6 +72,20 @@ PLANTILLAS_DISPONIBLES = {
             "Cualquier consulta, escríbenos por este medio. — Coosermul BN"
         ),
     },
+    "autorizacion_info_coosermul": {
+        "etiqueta": "Autorización de info (no socios BN)",
+        # Verificar el codigo exacto una vez aprobada por Meta (puede no
+        # coincidir con "es" generico, igual que paso con las otras dos).
+        "idioma": "es",
+        "variables": ["Nombre del trabajador"],
+        "vista_previa": (
+            "Hola {{1}}, te escribimos de Coosermul BN, la Cooperativa de "
+            "Servicios Múltiples de los Trabajadores del Banco de la Nación. "
+            "Nos gustaría compartirte información sobre los beneficios de "
+            "asociarte (créditos, bazar, previsión social y más). Si te "
+            "interesa recibir esta información, respóndenos SÍ."
+        ),
+    },
 }
 
 logger = logging.getLogger("agentkit")
