@@ -151,6 +151,9 @@ FORMATOS_CREDITO = [
 # Lista de precios del Centro Odontológico (imagen/PDF informativo).
 FORMATO_ODONTOLOGICO = "Centro Odontologico - Lista de precios.pdf"
 
+# Datos de cuentas de abono para pagos (PDF informativo).
+FORMATO_CUENTAS_ABONO = "Cuentas de Abono - Coosermul BN.pdf"
+
 KNOWLEDGE_DIR = "knowledge"
 
 
@@ -185,6 +188,11 @@ def resolver_paquete_inscripcion(perfil_socio: str) -> list[str]:
 def resolver_info_odontologico() -> list[str]:
     """Retorna el archivo de la lista de precios del Centro Odontológico."""
     return [FORMATO_ODONTOLOGICO]
+
+
+def resolver_cuentas_abono() -> list[str]:
+    """Retorna el archivo con los datos de las cuentas de abono para pagos."""
+    return [FORMATO_CUENTAS_ABONO]
 
 
 def listar_formatos_disponibles() -> list[str]:

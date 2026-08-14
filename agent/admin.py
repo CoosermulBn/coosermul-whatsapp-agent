@@ -31,7 +31,12 @@ from agent.memory import (
     obtener_eventos_atencion,
 )
 from agent.providers import obtener_proveedor
-from agent.tools import resolver_paquete_credito, resolver_paquete_inscripcion, ruta_completa
+from agent.tools import (
+    resolver_paquete_credito,
+    resolver_paquete_inscripcion,
+    resolver_cuentas_abono,
+    ruta_completa,
+)
 
 # Los mensajes de adjuntos recibidos se guardan con una etiqueta al inicio,
 # ej. "[[adjunto:12]] leyenda del usuario", para poder mostrar la imagen/
@@ -569,7 +574,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
         <h4>Enviar documentos (tras evaluar boleta de pago)</h4>
         <p class="sub" style="margin:0 0 8px 0;">Revisa la boleta adjunta arriba y envía el paquete correspondiente.</p>
         <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_credito"
-              onsubmit="return confirm('¿Enviar los 3 documentos de crédito (Solicitud, Pagaré, Contrato)?');">
+              onsubmit="return confirm('¿Enviar los 4 documentos de crédito (Solicitud, Pagaré, Contrato, Declaración Jurada)?');">
           <button class="btn-paquete" type="submit">📎 Enviar paquete de crédito</button>
         </form>
         <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_inscripcion"
@@ -583,6 +588,10 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
             <option value="tercero">Tercero</option>
           </select>
           <button class="btn-paquete" type="submit">📎 Enviar paquete de inscripción</button>
+        </form>
+        <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_cuentas_abono"
+              onsubmit="return confirm('¿Enviar el PDF de cuentas de abono para pagos?');">
+          <button class="btn-paquete" type="submit">📎 Enviar cuentas de abono</button>
         </form>
       </div>
       <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">
@@ -695,6 +704,26 @@ async def enviar_paquete_inscripcion_manual(
 
     if enviados:
         registro = f"[paquete de inscripción enviado, perfil {perfil}] " + ", ".join(enviados)
+        await guardar_mensaje(telefono, "humano", registro)
+        await activar_modo_humano(telefono)
+    return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/chat/{telefono}/enviar_cuentas_abono")
+async def enviar_cuentas_abono_manual(telefono: str, usuario: str = Depends(_verificar_credenciales)):
+    """El equipo envía manualmente el PDF con los datos de las cuentas de abono para pagos."""
+    proveedor = obtener_proveedor()
+    archivos = resolver_cuentas_abono()
+    enviados = []
+    for nombre_archivo in archivos:
+        ok = await proveedor.enviar_documento(telefono, ruta_completa(nombre_archivo), nombre_archivo)
+        if ok:
+            enviados.append(nombre_archivo)
+        else:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (cuentas de abono manual)")
+
+    if enviados:
+        registro = "[cuentas de abono enviadas] " + ", ".join(enviados)
         await guardar_mensaje(telefono, "humano", registro)
         await activar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
