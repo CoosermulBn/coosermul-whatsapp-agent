@@ -35,6 +35,7 @@ from agent.tools import (
     resolver_paquete_credito,
     resolver_paquete_inscripcion,
     resolver_cuentas_abono,
+    resolver_info_institucional,
     ruta_completa,
     buscar_socios,
     identificar_socio_por_telefono,
@@ -679,6 +680,10 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
               onsubmit="return confirm('¿Enviar el PDF de cuentas de abono para pagos?');">
           <button class="btn-paquete" type="submit">📎 Enviar cuentas de abono</button>
         </form>
+        <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_info_institucional"
+              onsubmit="return confirm('¿Enviar el paquete de información (carta, tríptico y catálogo)?');">
+          <button class="btn-paquete" type="submit">📎 Enviar paquete de información</button>
+        </form>
       </div>
       <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">
         <textarea name="mensaje" placeholder="Escribe tu respuesta (opcional si adjuntas un archivo)..."></textarea>
@@ -810,6 +815,26 @@ async def enviar_cuentas_abono_manual(telefono: str, usuario: str = Depends(_ver
 
     if enviados:
         registro = "[cuentas de abono enviadas] " + ", ".join(enviados)
+        await guardar_mensaje(telefono, "humano", registro)
+        await activar_modo_humano(telefono)
+    return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/chat/{telefono}/enviar_info_institucional")
+async def enviar_info_institucional_manual(telefono: str, usuario: str = Depends(_verificar_credenciales)):
+    """El equipo envía manualmente el paquete de información institucional (carta, tríptico, catálogo)."""
+    proveedor = obtener_proveedor()
+    archivos = resolver_info_institucional()
+    enviados = []
+    for nombre_archivo in archivos:
+        ok = await proveedor.enviar_documento(telefono, ruta_completa(nombre_archivo), nombre_archivo)
+        if ok:
+            enviados.append(nombre_archivo)
+        else:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (info institucional manual)")
+
+    if enviados:
+        registro = "[paquete de información enviado] " + ", ".join(enviados)
         await guardar_mensaje(telefono, "humano", registro)
         await activar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)

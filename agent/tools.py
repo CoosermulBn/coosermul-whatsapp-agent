@@ -240,6 +240,14 @@ FORMATO_ODONTOLOGICO = "Centro Odontologico - Lista de precios.pdf"
 # Datos de cuentas de abono para pagos (PDF informativo).
 FORMATO_CUENTAS_ABONO = "Cuentas de Abono - Coosermul BN.pdf"
 
+# Paquete de información institucional (para trabajadores del BN que no
+# son socios, ej. tras la plantilla de autorización).
+FORMATOS_INFO_INSTITUCIONAL = [
+    "CARTA DE PRESENTACION COOSERMUL BN.pdf",
+    "triptico 2026.pdf",
+    "Catalogo_COOSERMUL_BN 2026.pdf",
+]
+
 KNOWLEDGE_DIR = "knowledge"
 
 
@@ -279,6 +287,11 @@ def resolver_info_odontologico() -> list[str]:
 def resolver_cuentas_abono() -> list[str]:
     """Retorna el archivo con los datos de las cuentas de abono para pagos."""
     return [FORMATO_CUENTAS_ABONO]
+
+
+def resolver_info_institucional() -> list[str]:
+    """Retorna los archivos del paquete de información institucional (carta, tríptico, catálogo)."""
+    return list(FORMATOS_INFO_INSTITUCIONAL)
 
 
 def listar_formatos_disponibles() -> list[str]:
