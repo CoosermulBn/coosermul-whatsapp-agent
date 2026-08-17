@@ -75,9 +75,7 @@ PLANTILLAS_DISPONIBLES = {
     },
     "autorizacion_info_coosermul": {
         "etiqueta": "Autorización de info (no socios BN)",
-        # Verificar el codigo exacto una vez aprobada por Meta (puede no
-        # coincidir con "es" generico, igual que paso con las otras dos).
-        "idioma": "es",
+        "idioma": "es_PE",
         "variables": ["Nombre del trabajador"],
         "vista_previa": (
             "Hola {{1}}, te escribimos de Coosermul BN, la Cooperativa de "
