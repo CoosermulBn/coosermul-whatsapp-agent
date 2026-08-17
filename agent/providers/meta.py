@@ -83,6 +83,28 @@ class ProveedorMeta(ProveedorWhatsApp):
                                 tipo="boton",
                                 boton_id=button_reply.get("id", ""),
                             ))
+
+                # Meta también manda actualizaciones de estado de los
+                # mensajes que EL BOT envió (enviado/entregado/leído/
+                # fallido), separado de "messages". Antes se ignoraban
+                # por completo, así que un envío fallido (ej. plantilla
+                # rechazada, número inválido) quedaba invisible.
+                for estado in value.get("statuses", []):
+                    if estado.get("status") == "failed":
+                        errores = estado.get("errors", [])
+                        detalle = "; ".join(
+                            f"{e.get('code')}: {e.get('title')} — {e.get('message', '')}"
+                            for e in errores
+                        ) or "sin detalle"
+                        logger.error(
+                            f"Mensaje FALLIDO a {estado.get('recipient_id', '?')} "
+                            f"(id={estado.get('id', '?')}): {detalle}"
+                        )
+                    elif os.getenv("DEBUG_WEBHOOK_PAYLOAD", "").lower() == "true":
+                        logger.info(
+                            f"Estado de mensaje: {estado.get('status')} "
+                            f"a {estado.get('recipient_id', '?')} (id={estado.get('id', '?')})"
+                        )
         return mensajes
 
     async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
