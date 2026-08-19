@@ -12,6 +12,7 @@ import os
 import re
 import html
 import json
+import asyncio
 import secrets
 import logging
 import tempfile
@@ -379,7 +380,10 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
           <h1>Conversaciones de WhatsApp</h1>
           <div class="sub">Coosermul BN · Soporte Coosermul</div>
         </div>
-        <a class="btn-nueva" href="/admin/nueva">+ Nueva conversación</a>
+        <div style="display:flex; gap:8px;">
+          <a class="btn-nueva" href="/admin/nueva">+ Nueva conversación</a>
+          <a class="btn-nueva" href="/admin/nueva/masivo">+ Envío masivo</a>
+        </div>
       </div>
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
       <div id="alerta-pendientes" class="alerta"></div>
@@ -549,6 +553,128 @@ async def nueva_conversacion_enviar(
     await guardar_mensaje(telefono, "humano", registro)
     await activar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+MAX_ENVIOS_MASIVOS = 200
+PAUSA_ENTRE_ENVIOS_MASIVOS = 0.4  # segundos, para no chocar con limites de Meta
+
+
+@router.get("/admin/nueva/masivo", response_class=HTMLResponse)
+async def nueva_masiva_form(usuario: str = Depends(_verificar_credenciales)):
+    """Formulario para enviar la misma plantilla a una lista de números."""
+    opciones = "".join(
+        f'<option value="{nombre}">{html.escape(info["etiqueta"])}</option>'
+        for nombre, info in PLANTILLAS_DISPONIBLES.items()
+    )
+    bloques_ayuda = ""
+    for nombre, info in PLANTILLAS_DISPONIBLES.items():
+        formato = "telefono" + "".join(f",{v}" for v in info["variables"])
+        bloques_ayuda += f"""
+        <div class="bloque-plantilla" data-plantilla="{nombre}" style="display:none;">
+          <div class="vista-previa">
+            Formato por línea: <code>{html.escape(formato)}</code><br>
+            Ej: <code>51987654321,{", ".join(v.split(" (")[0] for v in info["variables"])}</code>
+          </div>
+        </div>
+        """
+
+    return f"""
+    <html>
+    <head><title>Envío masivo — Coosermul BN</title>{ESTILO}</head>
+    <body>
+      <a class="back" href="/admin">&larr; Volver a conversaciones</a>
+      <h1>Enviar plantilla a varios números</h1>
+      <div class="alerta-info">
+        Se envía la misma plantilla a cada número de la lista, uno por
+        uno con una pequeña pausa entre cada envío para no chocar con
+        los límites de Meta. Máximo {MAX_ENVIOS_MASIVOS} números por
+        tanda — si tienes más, envíalos en varias tandas.
+      </div>
+      <form method="post" action="/admin/nueva/masivo" class="form-nueva">
+        <label>Plantilla
+          <select name="plantilla" id="select-plantilla-masivo" required>
+            <option value="">-- Selecciona --</option>
+            {opciones}
+          </select>
+        </label>
+        {bloques_ayuda}
+        <label>Números y variables (uno por línea, separados por coma)
+          <textarea name="lista" required rows="10" placeholder="51987654321,Juan Pérez&#10;51912345678,María López"
+            style="width:100%; font-family:monospace; font-size:13px; padding:10px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; margin-top:6px;"></textarea>
+        </label>
+        <button type="submit">Enviar a todos</button>
+      </form>
+      <script>
+        var select = document.getElementById('select-plantilla-masivo');
+        var bloques = document.querySelectorAll('.bloque-plantilla');
+        select.addEventListener('change', function () {{
+          bloques.forEach(function (b) {{
+            b.style.display = b.getAttribute('data-plantilla') === select.value ? 'block' : 'none';
+          }});
+        }});
+      </script>
+    </body>
+    </html>
+    """
+
+
+@router.post("/admin/nueva/masivo", response_class=HTMLResponse)
+async def nueva_masiva_enviar(
+    plantilla: str = Form(...),
+    lista: str = Form(...),
+    usuario: str = Depends(_verificar_credenciales),
+):
+    """Envía la plantilla elegida a cada número de la lista, uno por uno."""
+    info = PLANTILLAS_DISPONIBLES.get(plantilla)
+    if not info:
+        return RedirectResponse(url="/admin/nueva/masivo", status_code=303)
+
+    proveedor = obtener_proveedor()
+    lineas = [l.strip() for l in lista.splitlines() if l.strip()][:MAX_ENVIOS_MASIVOS]
+
+    resultados = []
+    for linea in lineas:
+        partes = [p.strip() for p in linea.split(",")]
+        telefono = re.sub(r"\D", "", partes[0]) if partes else ""
+        variables = partes[1:]
+        if not telefono:
+            resultados.append({"telefono": linea, "ok": False, "detalle": "número inválido"})
+            continue
+
+        enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables)
+        if enviado:
+            registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
+            await guardar_mensaje(telefono, "humano", registro)
+            await activar_modo_humano(telefono)
+            resultados.append({"telefono": telefono, "ok": True, "detalle": ""})
+        else:
+            logger.error(f"Envio masivo: no se pudo enviar {plantilla} a {telefono}")
+            resultados.append({"telefono": telefono, "ok": False, "detalle": "no se pudo enviar (ver logs)"})
+
+        await asyncio.sleep(PAUSA_ENTRE_ENVIOS_MASIVOS)
+
+    exitosos = sum(1 for r in resultados if r["ok"])
+    fallidos = len(resultados) - exitosos
+    filas = "".join(
+        f'<div class="feed-item">{"✅" if r["ok"] else "❌"} {html.escape(r["telefono"])} '
+        f'{html.escape(r["detalle"])}</div>'
+        for r in resultados
+    )
+
+    return f"""
+    <html>
+    <head><title>Resultado envío masivo — Coosermul BN</title>{ESTILO}</head>
+    <body>
+      <a class="back" href="/admin">&larr; Volver a conversaciones</a>
+      <h1>Resultado del envío masivo</h1>
+      <div class="alerta-info">
+        {exitosos} enviados correctamente, {fallidos} fallidos, de {len(resultados)} en total.
+      </div>
+      <div class="feed-eventos" style="display:block;">{filas}</div>
+      <a class="btn-nueva" href="/admin/nueva/masivo" style="margin-top:16px; display:inline-block;">Enviar otra tanda</a>
+    </body>
+    </html>
+    """
 
 
 @router.get("/admin/media/{adjunto_id}")
