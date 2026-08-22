@@ -355,8 +355,9 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "evaluar tu capacidad de crédito. ¿Nos podrías enviar tu boleta "
             "de pago (o de pensión) más reciente? En cuanto la evaluemos, "
             "te enviaremos los documentos.\n\n"
-            "Si prefieres, también puedo comunicarte ahora mismo con "
-            "nuestro Asesor personal para que te ayude directamente."
+            "Si prefieres, también puedes comunicarte ahora mismo con "
+            "nuestro Asesor personal para que te ayude directamente al "
+            "siguiente link: https://wa.me/51996899924"
         )
         return {
             "resultado_texto": "Mensaje con botones mostrado al socio (pedido de boleta + opción de asesor).",
