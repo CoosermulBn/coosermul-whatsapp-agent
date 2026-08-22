@@ -551,7 +551,9 @@ async def nueva_conversacion_enviar(
 
     registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
     await guardar_mensaje(telefono, "humano", registro)
-    await activar_modo_humano(telefono)
+    # No activamos modo_humano: dejamos que el bot responda automáticamente
+    # cuando la persona conteste la plantilla (ver "Caso especial" en el
+    # prompt para la plantilla de autorización de info).
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
 
 
@@ -645,7 +647,7 @@ async def nueva_masiva_enviar(
         if enviado:
             registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
             await guardar_mensaje(telefono, "humano", registro)
-            await activar_modo_humano(telefono)
+            # No activamos modo_humano: dejamos que el bot responda solo.
             resultados.append({"telefono": telefono, "ok": True, "detalle": ""})
         else:
             logger.error(f"Envio masivo: no se pudo enviar {plantilla} a {telefono}")
