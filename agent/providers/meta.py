@@ -71,7 +71,8 @@ class ProveedorMeta(ProveedorWhatsApp):
                             nombre_archivo=adjunto.get("filename", ""),
                         ))
                     elif tipo_msg == "interactive":
-                        # El socio presionó un botón de respuesta rápida.
+                        # El socio presionó un botón de respuesta rápida, o
+                        # eligió una fila de un menú tipo lista.
                         interactivo = msg.get("interactive", {})
                         if interactivo.get("type") == "button_reply":
                             button_reply = interactivo.get("button_reply", {})
@@ -82,6 +83,16 @@ class ProveedorMeta(ProveedorWhatsApp):
                                 es_propio=False,
                                 tipo="boton",
                                 boton_id=button_reply.get("id", ""),
+                            ))
+                        elif interactivo.get("type") == "list_reply":
+                            list_reply = interactivo.get("list_reply", {})
+                            mensajes.append(MensajeEntrante(
+                                telefono=remitente,
+                                texto=list_reply.get("title", ""),
+                                mensaje_id=msg.get("id", ""),
+                                es_propio=False,
+                                tipo="boton",
+                                boton_id=list_reply.get("id", ""),
                             ))
 
                 # Meta también manda actualizaciones de estado de los
@@ -228,6 +239,48 @@ class ProveedorMeta(ProveedorWhatsApp):
             r = await client.post(url, json=payload, headers=headers)
             if r.status_code != 200:
                 logger.error(f"Error enviando botones via Meta API: {r.status_code} — {r.text}")
+            return r.status_code == 200
+
+    async def enviar_lista(
+        self, telefono: str, texto: str, texto_boton: str, filas: list[dict]
+    ) -> bool:
+        """
+        Envía un menú interactivo tipo lista (hasta 10 filas), con un botón
+        que lo abre. Además de tocar una fila, el socio puede seguir
+        respondiendo con el número por texto normal.
+        """
+        if not self.access_token or not self.phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
+            return False
+        url = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        filas_meta = []
+        for f in filas[:10]:
+            fila = {"id": str(f["id"])[:200], "title": str(f["titulo"])[:24]}
+            descripcion = (f.get("descripcion") or "").strip()
+            if descripcion:
+                fila["description"] = descripcion[:72]
+            filas_meta.append(fila)
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono,
+            "type": "interactive",
+            "interactive": {
+                "type": "list",
+                "body": {"text": texto},
+                "action": {
+                    "button": (texto_boton or "Ver opciones")[:20],
+                    "sections": [{"rows": filas_meta}],
+                },
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code != 200:
+                logger.error(f"Error enviando lista via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
 
     async def enviar_plantilla(

@@ -141,6 +141,59 @@ HERRAMIENTAS = [
         },
     },
     {
+        "name": "mostrar_opciones",
+        "description": (
+            "Muestra una lista de 2 a 10 opciones NUMERADAS como un menú "
+            "táctil de WhatsApp (el socio puede tocar una opción, o "
+            "seguir respondiendo con el número por texto si prefiere). "
+            "Úsala SIEMPRE que vayas a presentar 2 o más opciones "
+            "numeradas — el menú principal, submenús, tipos de crédito, "
+            "productos del bazar, perfiles de inscripción, etc. — en vez "
+            "de escribir la lista numerada como texto plano (ej. '1️⃣ "
+            "Créditos\\n2️⃣ Bazar'). El texto de introducción (todo lo "
+            "que dirías antes de la lista) va en el parámetro `texto` de "
+            "esta misma herramienta, NO lo repitas en tu respuesta final."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "texto": {
+                    "type": "string",
+                    "description": (
+                        "Texto de introducción antes de la lista, ej. "
+                        "'¿En qué te ayudo? Elige una opción:'"
+                    ),
+                },
+                "texto_boton": {
+                    "type": "string",
+                    "description": "Texto corto del botón que abre la lista, ej. 'Ver opciones' (máx 20 caracteres).",
+                },
+                "opciones": {
+                    "type": "array",
+                    "description": (
+                        "Las opciones, en el mismo orden en que las "
+                        "numerarías (1, 2, 3...). Máximo 10."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "titulo": {
+                                "type": "string",
+                                "description": "Nombre corto de la opción (máx 24 caracteres).",
+                            },
+                            "descripcion": {
+                                "type": "string",
+                                "description": "Detalle adicional opcional, ej. precio o resumen (máx 72 caracteres).",
+                            },
+                        },
+                        "required": ["titulo"],
+                    },
+                },
+            },
+            "required": ["texto", "opciones"],
+        },
+    },
+    {
         "name": "preguntar_hablar_con_asesor",
         "description": (
             "Muestra dos botones táctiles (Sí / No) para preguntarle al "
@@ -318,6 +371,26 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             },
         }
 
+    if nombre == "mostrar_opciones":
+        texto_intro = (entrada.get("texto") or "Elige una opción:").strip()
+        texto_boton = (entrada.get("texto_boton") or "Ver opciones").strip()[:20]
+        opciones_raw = entrada.get("opciones") or []
+        filas = []
+        for i, op in enumerate(opciones_raw[:10]):
+            titulo = str(op.get("titulo", "")).strip()[:24] or f"Opción {i + 1}"
+            descripcion = str(op.get("descripcion", "")).strip()[:72]
+            filas.append({"id": str(i + 1), "titulo": titulo, "descripcion": descripcion})
+        return {
+            "resultado_texto": "Menú de opciones táctiles mostrado al socio.",
+            "documentos": [],
+            "escalar": False,
+            "lista": {
+                "texto": texto_intro,
+                "texto_boton": texto_boton,
+                "filas": filas,
+            },
+        }
+
     if nombre == "preguntar_hablar_con_asesor":
         mensaje_botones = entrada.get(
             "mensaje", "¿Quieres que te comunique ahora mismo con nuestro Asesor personal?"
@@ -362,7 +435,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     Returns:
         {"texto": str, "documentos": [{"nombre_archivo": str, "ruta": str}, ...]}
     """
-    vacio = {"texto": obtener_mensaje_fallback(), "documentos": [], "escalar": False, "motivo_escalamiento": "", "botones": None}
+    vacio = {"texto": obtener_mensaje_fallback(), "documentos": [], "escalar": False, "motivo_escalamiento": "", "botones": None, "lista": None}
     if not mensaje or not mensaje.strip():
         return vacio
 
@@ -385,6 +458,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     escalar_total = False
     motivo_total = ""
     botones_total: dict | None = None
+    lista_total: dict | None = None
 
     try:
         # Hasta 2 vueltas: 1) Claude puede pedir usar una herramienta,
@@ -405,7 +479,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                     # preparados o botones armados), un texto vacío no es
                     # un error real — usamos un remate corto en vez del
                     # mensaje de error genérico.
-                    if documentos_totales or botones_total:
+                    if documentos_totales or botones_total or lista_total:
                         texto = "¡Listo!"
                     else:
                         logger.warning("Claude no devolvio texto (solo bloques no-texto)")
@@ -415,6 +489,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                             "escalar": escalar_total,
                             "motivo_escalamiento": motivo_total,
                             "botones": botones_total,
+                            "lista": lista_total,
                         }
                 logger.info(f"Respuesta generada ({response.usage.input_tokens} in / {response.usage.output_tokens} out)")
                 return {
@@ -423,6 +498,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                     "escalar": escalar_total,
                     "motivo_escalamiento": motivo_total,
                     "botones": botones_total,
+                    "lista": lista_total,
                 }
 
             # Claude pidió usar una o más herramientas: las ejecutamos y
@@ -439,6 +515,8 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                         motivo_total = resultado.get("motivo", "")
                     if resultado.get("botones"):
                         botones_total = resultado["botones"]
+                    if resultado.get("lista"):
+                        lista_total = resultado["lista"]
                     resultados_tool.append({
                         "type": "tool_result",
                         "tool_use_id": bloque.id,
@@ -454,6 +532,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             "escalar": escalar_total,
             "motivo_escalamiento": motivo_total,
             "botones": botones_total,
+            "lista": lista_total,
         }
 
     except Exception:
@@ -464,4 +543,5 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             "escalar": escalar_total,
             "motivo_escalamiento": motivo_total,
             "botones": botones_total,
+            "lista": lista_total,
         }

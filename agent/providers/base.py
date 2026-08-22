@@ -61,6 +61,17 @@ class ProveedorWhatsApp(ABC):
         """
         return False
 
+    async def enviar_lista(
+        self, telefono: str, texto: str, texto_boton: str, filas: list[dict]
+    ) -> bool:
+        """
+        Envía un menú interactivo tipo lista (hasta 10 filas), con un botón
+        que lo abre. `filas` es una lista de hasta 10 dicts
+        {"id": str, "titulo": str, "descripcion": str (opcional)}.
+        Retorna True si fue exitoso.
+        """
+        return False
+
     async def enviar_plantilla(
         self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str]
     ) -> bool:

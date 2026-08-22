@@ -207,6 +207,15 @@ async def webhook_handler(request: Request):
                     msg.telefono, botones["mensaje"], botones["opciones"]
                 )
 
+            # Si Claude pidió mostrar un menú de opciones táctil (ej. el
+            # menú principal, tipos de crédito, productos del bazar), lo
+            # enviamos como mensaje aparte.
+            lista = resultado.get("lista")
+            if lista:
+                await proveedor.enviar_lista(
+                    msg.telefono, lista["texto"], lista["texto_boton"], lista["filas"]
+                )
+
             logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
 
             # Si Claude pidió escalar, activamos el modo humano DESPUÉS de
