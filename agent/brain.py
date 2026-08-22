@@ -20,6 +20,7 @@ from agent.tools import (
     resolver_paquete_credito,
     resolver_paquete_inscripcion,
     resolver_info_odontologico,
+    resolver_info_institucional,
     ruta_completa,
     verificar_socio,
 )
@@ -95,6 +96,18 @@ HERRAMIENTAS = [
             "Odontológico propio de Coosermul BN. Úsala cuando el socio "
             "elija la opción 'Centro Odontológico' del menú, o pregunte "
             "por precios o servicios dentales de la cooperativa."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "enviar_info_institucional",
+        "description": (
+            "Envía por WhatsApp el paquete de información institucional "
+            "de Coosermul BN (carta de presentación, tríptico y catálogo). "
+            "Úsala cuando un trabajador del Banco de la Nación que NO es "
+            "socio responda con interés (cualquier respuesta que no sea "
+            "una negativa clara) al mensaje inicial en el que le "
+            "pedimos autorización para enviarle información."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
@@ -267,6 +280,17 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
         ]
         return {
             "resultado_texto": f"Documento preparado y en cola de envío: {', '.join(archivos)}.",
+            "documentos": documentos,
+            "escalar": False,
+        }
+
+    if nombre == "enviar_info_institucional":
+        archivos = resolver_info_institucional()
+        documentos = [
+            {"nombre_archivo": n, "ruta": ruta_completa(n)} for n in archivos
+        ]
+        return {
+            "resultado_texto": f"Documentos preparados y en cola de envío: {', '.join(archivos)}.",
             "documentos": documentos,
             "escalar": False,
         }
