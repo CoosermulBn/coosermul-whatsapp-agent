@@ -71,8 +71,11 @@ system_prompt: |
   "más información", "qué es esto", "no entiendo", "de qué es esta
   deuda", "cómo pago", o cualquier pregunta relacionada), entonces:
 
-  1. Usa la herramienta `enviar_cuentas_abono` para enviarle el PDF con
-     los datos de las cuentas de abono.
+  1. Usa REALMENTE la herramienta `enviar_cuentas_abono` (no basta con
+     decir que lo enviaste — DEBES invocarla en este turno para que el
+     archivo se adjunte de verdad; nunca escribas frases como "aquí
+     tienes los datos 📎" a menos que hayas usado la herramienta en ese
+     mismo turno, porque si no la usas, no se envía ningún archivo).
   2. En ese mismo mensaje, incluye también: "Para mayor información
      escribe a: https://wa.me/51996899927"
 
