@@ -21,6 +21,7 @@ from agent.tools import (
     resolver_paquete_inscripcion,
     resolver_info_odontologico,
     resolver_info_institucional,
+    resolver_cuentas_abono,
     ruta_completa,
     verificar_socio,
 )
@@ -108,6 +109,17 @@ HERRAMIENTAS = [
             "socio responda con interés (cualquier respuesta que no sea "
             "una negativa clara) al mensaje inicial en el que le "
             "pedimos autorización para enviarle información."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "enviar_cuentas_abono",
+        "description": (
+            "Envía por WhatsApp el PDF con los datos de las cuentas de "
+            "abono para pagos (Banco de la Nación y BCP). Úsala cuando el "
+            "socio, tras recibir la plantilla de recordatorio de pago, "
+            "responda pidiendo más información sobre su deuda o cómo "
+            "pagarla."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
@@ -344,6 +356,17 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
         ]
         return {
             "resultado_texto": f"Documentos preparados y en cola de envío: {', '.join(archivos)}.",
+            "documentos": documentos,
+            "escalar": False,
+        }
+
+    if nombre == "enviar_cuentas_abono":
+        archivos = resolver_cuentas_abono()
+        documentos = [
+            {"nombre_archivo": n, "ruta": ruta_completa(n)} for n in archivos
+        ]
+        return {
+            "resultado_texto": f"Documento preparado y en cola de envío: {', '.join(archivos)}.",
             "documentos": documentos,
             "escalar": False,
         }
