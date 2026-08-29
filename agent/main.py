@@ -37,6 +37,7 @@ from agent.memory import (
 )
 from agent.providers import obtener_proveedor
 from agent.admin import router as admin_router
+from agent.tools import resolver_info_institucional, ruta_completa
 
 load_dotenv()
 
@@ -65,6 +66,49 @@ MENSAJE_ASESOR_CONFIRMADO = (
     "¡Listo! 🙌 Ya avisé a nuestro Asesor personal, en breve te "
     "atenderá aquí mismo en este chat."
 )
+
+# La primera respuesta a la plantilla "Autorización de info (no socios
+# BN)" se maneja 100% en código (sin pasar por Claude): varias pruebas
+# reales mostraron que depender del modelo para esto (enviar el paquete +
+# mostrar el menú + el link, todo junto) no era confiable — a veces no
+# enviaba el archivo, a veces escalaba a un humano sin motivo, etc.
+MARCADOR_PLANTILLA_AUTORIZACION = "[plantilla enviada: Autorización de info (no socios BN)]"
+
+NEGATIVAS_AUTORIZACION = {
+    "no", "no.", "no,", "no gracias", "no, gracias", "no me interesa",
+    "no quiero", "nel", "negativo", "no por ahora", "no gracias.",
+}
+
+MENSAJE_NEGATIVA_AUTORIZACION = "¡Gracias por responder! 🙌 Que tengas un buen día."
+
+MENSAJE_INFO_AUTORIZACION_ENVIADA = (
+    "¡Listo! Te acabo de enviar la información sobre Coosermul BN 📎. "
+    "También puedes escribirnos directo aquí: https://wa.me/51996899924"
+)
+
+MENU_B_TEXTO = "¿En qué te ayudo? Elige una opción:"
+MENU_B_BOTON = "Ver opciones"
+MENU_B_FILAS = [
+    {"id": "1", "titulo": "Necesito información", "descripcion": ""},
+    {"id": "2", "titulo": "Quiero inscribirme", "descripcion": "Como socio nuevo"},
+    {"id": "3", "titulo": "Asesor personal", "descripcion": ""},
+    {"id": "4", "titulo": "Finalizar conversación", "descripcion": ""},
+]
+
+
+def _es_primera_respuesta_a_autorizacion(historial: list[dict]) -> bool:
+    """True si el único mensaje previo es el envío de la plantilla de autorización."""
+    return (
+        len(historial) == 1
+        and historial[0]["content"].startswith(MARCADOR_PLANTILLA_AUTORIZACION)
+    )
+
+
+def _es_negativa_clara(texto: str) -> bool:
+    t = (texto or "").strip().lower().rstrip(".!¡¿?,;")
+    if t in NEGATIVAS_AUTORIZACION or t == "no":
+        return True
+    return t.startswith("no ")
 
 
 @asynccontextmanager
@@ -177,6 +221,33 @@ async def webhook_handler(request: Request):
             # Obtener historial ANTES de guardar el mensaje actual
             # (brain.py agrega el mensaje actual, evitando duplicados)
             historial = await obtener_historial(msg.telefono)
+
+            # Primera respuesta a la plantilla de autorización de info:
+            # manejo 100% determinístico, sin pasar por Claude (ver nota
+            # arriba en MARCADOR_PLANTILLA_AUTORIZACION).
+            if _es_primera_respuesta_a_autorizacion(historial):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                if _es_negativa_clara(msg.texto):
+                    respuesta = MENSAJE_NEGATIVA_AUTORIZACION
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                else:
+                    archivos = resolver_info_institucional()
+                    for nombre_archivo in archivos:
+                        ok = await proveedor.enviar_documento(
+                            msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
+                        )
+                        if not ok:
+                            logger.error(
+                                f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
+                                "(paquete de información, respuesta a autorización)"
+                            )
+                    respuesta = MENSAJE_INFO_AUTORIZACION_ENVIADA
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await proveedor.enviar_lista(msg.telefono, MENU_B_TEXTO, MENU_B_BOTON, MENU_B_FILAS)
+                logger.info(f"Respuesta a {msg.telefono} (autorizacion info): {respuesta}")
+                continue
 
             # Generar respuesta con Claude (puede incluir documentos a enviar
             # o pedir escalar la conversación a un humano)
