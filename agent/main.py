@@ -8,6 +8,7 @@ Funciona con cualquier proveedor (Meta, Twilio) gracias a la capa de providers.
 
 import sys
 import os
+import re
 import logging
 
 # Algunos contenedores Linux minimalistas arrancan con una configuración
@@ -74,12 +75,10 @@ MENSAJE_ASESOR_CONFIRMADO = (
 # enviaba el archivo, a veces escalaba a un humano sin motivo, etc.
 MARCADOR_PLANTILLA_AUTORIZACION = "[plantilla enviada: Autorización de info (no socios BN)]"
 
-NEGATIVAS_AUTORIZACION = {
-    "no", "no.", "no,", "no gracias", "no, gracias", "no me interesa",
-    "no quiero", "nel", "negativo", "no por ahora", "no gracias.",
-}
-
-MENSAJE_NEGATIVA_AUTORIZACION = "¡Gracias por responder! 🙌 Que tengas un buen día."
+MENSAJE_NEGATIVA_AUTORIZACION = (
+    "Disculpa la molestia 🙏 Quedamos atentos — no dudes en escribirnos "
+    "si más adelante deseas recibir esta información."
+)
 
 MENSAJE_INFO_AUTORIZACION_ENVIADA = (
     "¡Listo! Te acabo de enviar la información sobre Coosermul BN 📎. "
@@ -105,10 +104,15 @@ def _es_primera_respuesta_a_autorizacion(historial: list[dict]) -> bool:
 
 
 def _es_negativa_clara(texto: str) -> bool:
-    t = (texto or "").strip().lower().rstrip(".!¡¿?,;")
-    if t in NEGATIVAS_AUTORIZACION or t == "no":
-        return True
-    return t.startswith("no ")
+    """
+    Detecta una negativa de forma flexible: basta con que la palabra "no"
+    aparezca en cualquier parte del mensaje (ej. "ahora no, gracias", "no
+    por el momento", "no, no me interesa"). Es intencionalmente amplia:
+    ante la duda, es preferible NO mandar información no solicitada a un
+    trabajador que no dio su autorización clara.
+    """
+    t = (texto or "").strip().lower()
+    return bool(re.search(r"\bno\b", t))
 
 
 @asynccontextmanager
