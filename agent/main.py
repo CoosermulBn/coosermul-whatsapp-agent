@@ -115,6 +115,25 @@ def _es_negativa_clara(texto: str) -> bool:
     return bool(re.search(r"\bno\b", t))
 
 
+# Mensaje genérico para cuando la respuesta a una plantilla no encaja
+# claramente en ningún caso reconocido (ni negativa, ni un "sí" claro,
+# ni un agradecimiento) — solo se le deriva a un número de contacto, sin
+# escalar al Asesor personal ni asumir qué es lo que quiere.
+PALABRAS_POSITIVAS_AUTORIZACION = {
+    "si", "sí", "ok", "okay", "okey", "dale", "claro", "bueno", "acepto",
+    "quiero", "interesa", "envia", "envía", "manda", "mandame", "mándame",
+    "porfavor", "porfa",
+}
+
+
+def _es_positiva_clara_autorizacion(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    if re.search(r"\bpor favor\b", t):
+        return True
+    palabras = set(re.findall(r"[a-záéíóúñ]+", t))
+    return bool(palabras & PALABRAS_POSITIVAS_AUTORIZACION)
+
+
 # La primera respuesta a la plantilla "Recordatorio de pago" también se
 # maneja 100% en código, por la misma razón que la de autorización: no
 # es confiable depender de que Claude use la herramienta correcta y
@@ -178,6 +197,26 @@ def _es_agradecimiento_simple(texto: str) -> bool:
         p in PALABRAS_AGRADECIMIENTO or p in PALABRAS_RELLENO_AGRADECIMIENTO for p in palabras
     )
     return tiene_agradecimiento and todas_validas
+
+
+# Mensaje para cuando la respuesta a una plantilla no encaja claramente
+# en ningún caso reconocido — se deriva a un número de contacto en vez
+# de asumir qué necesita o de escalar al Asesor personal.
+MENSAJE_NO_RECONOCIDO_PLANTILLA = (
+    "Para una amplia información por favor escríbenos a 996899927. "
+    "También puedes escribirnos directo aquí: https://wa.me/51996899924"
+)
+
+PALABRAS_SOLICITUD_INFO_RECORDATORIO = (
+    "cuenta", "cuentas", "pagar", "pago", "monto", "informacion",
+    "información", "deuda", "abono", "banco", "numero", "número",
+    "cuanto", "cuánto", "descuento", "planilla", "cuota",
+)
+
+
+def _es_solicitud_info_clara_recordatorio(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    return any(p in t for p in PALABRAS_SOLICITUD_INFO_RECORDATORIO)
 
 
 @asynccontextmanager
@@ -300,6 +339,10 @@ async def webhook_handler(request: Request):
                     respuesta = MENSAJE_NEGATIVA_AUTORIZACION
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                elif not _es_positiva_clara_autorizacion(msg.texto):
+                    respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 else:
                     archivos = resolver_info_institucional()
                     for nombre_archivo in archivos:
@@ -329,6 +372,10 @@ async def webhook_handler(request: Request):
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 elif _es_agradecimiento_simple(msg.texto):
                     respuesta = MENSAJE_AGRADECIMIENTO_RECORDATORIO
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                elif not _es_solicitud_info_clara_recordatorio(msg.texto):
+                    respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 else:
