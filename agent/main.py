@@ -38,7 +38,7 @@ from agent.memory import (
 )
 from agent.providers import obtener_proveedor
 from agent.admin import router as admin_router
-from agent.tools import resolver_info_institucional, ruta_completa
+from agent.tools import resolver_info_institucional, resolver_cuentas_abono, ruta_completa
 
 load_dotenv()
 
@@ -113,6 +113,45 @@ def _es_negativa_clara(texto: str) -> bool:
     """
     t = (texto or "").strip().lower()
     return bool(re.search(r"\bno\b", t))
+
+
+# La primera respuesta a la plantilla "Recordatorio de pago" también se
+# maneja 100% en código, por la misma razón que la de autorización: no
+# es confiable depender de que Claude use la herramienta correcta y
+# escriba el texto exacto en el mismo turno, todas las veces.
+MARCADOR_PLANTILLA_RECORDATORIO = "[plantilla enviada: Recordatorio de pago]"
+
+PALABRAS_YA_PAGO = (
+    "ya pagu", "ya pague", "ya pagué", "ya cancel", "ya deposit",
+    "ya transfer", "esta pagado", "está pagado", "esta cancelado",
+    "está cancelado", "es un error", "eso es un error", "esta mal",
+    "está mal", "no me corresponde", "no corresponde", "no es correcto",
+)
+
+MENSAJE_YA_PAGO_RECORDATORIO = (
+    "Las disculpas del caso 🙏 Por favor ignora el recordatorio de pago "
+    "— vamos a informar a Sistemas para que no vuelva a pasar."
+)
+
+MENSAJE_CUENTAS_ABONO_RECORDATORIO = (
+    "Sabemos que es descuento por planilla, solo para que tenga en "
+    "cuenta y sepa cuánto es lo que le tienen que descontar. En caso no "
+    "cubra su descuento, puede abonar a nuestras cuentas. Mayor "
+    "información al N° 996899924 ó N° 996899927."
+)
+
+
+def _es_primera_respuesta_a_recordatorio(historial: list[dict]) -> bool:
+    """True si el único mensaje previo es el envío de la plantilla de recordatorio de pago."""
+    return (
+        len(historial) == 1
+        and historial[0]["content"].startswith(MARCADOR_PLANTILLA_RECORDATORIO)
+    )
+
+
+def _es_reclamo_ya_pago(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    return any(p in t for p in PALABRAS_YA_PAGO)
 
 
 @asynccontextmanager
@@ -251,6 +290,32 @@ async def webhook_handler(request: Request):
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                     await proveedor.enviar_lista(msg.telefono, MENU_B_TEXTO, MENU_B_BOTON, MENU_B_FILAS)
                 logger.info(f"Respuesta a {msg.telefono} (autorizacion info): {respuesta}")
+                continue
+
+            # Primera respuesta a la plantilla de recordatorio de pago:
+            # manejo 100% determinístico, sin pasar por Claude (ver nota
+            # arriba en MARCADOR_PLANTILLA_RECORDATORIO).
+            if _es_primera_respuesta_a_recordatorio(historial):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                if _es_reclamo_ya_pago(msg.texto):
+                    respuesta = MENSAJE_YA_PAGO_RECORDATORIO
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                else:
+                    archivos = resolver_cuentas_abono()
+                    for nombre_archivo in archivos:
+                        ok = await proveedor.enviar_documento(
+                            msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
+                        )
+                        if not ok:
+                            logger.error(
+                                f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
+                                "(cuentas de abono, respuesta a recordatorio de pago)"
+                            )
+                    respuesta = MENSAJE_CUENTAS_ABONO_RECORDATORIO
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono} (recordatorio pago): {respuesta}")
                 continue
 
             # Generar respuesta con Claude (puede incluir documentos a enviar
