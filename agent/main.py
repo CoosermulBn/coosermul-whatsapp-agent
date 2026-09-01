@@ -140,6 +140,17 @@ MENSAJE_CUENTAS_ABONO_RECORDATORIO = (
     "información al N° 996899924 ó N° 996899927."
 )
 
+MENSAJE_AGRADECIMIENTO_RECORDATORIO = "Muy agradecido por su atención."
+
+# Palabras de un simple acuse de recibo (ej. "ok", "gracias", "ok
+# gracias") — en ese caso el bot solo agradece y NO manda las cuentas de
+# abono (evita spamear a alguien que solo estaba confirmando que leyó).
+PALABRAS_AGRADECIMIENTO = {
+    "ok", "okay", "okey", "vale", "gracias", "entendido", "listo",
+    "perfecto", "bien", "genial",
+}
+PALABRAS_RELLENO_AGRADECIMIENTO = {"muchas", "mil", "de", "acuerdo", "todo", "esta", "está", "super", "súper"}
+
 
 def _es_primera_respuesta_a_recordatorio(historial: list[dict]) -> bool:
     """True si el único mensaje previo es el envío de la plantilla de recordatorio de pago."""
@@ -152,6 +163,21 @@ def _es_primera_respuesta_a_recordatorio(historial: list[dict]) -> bool:
 def _es_reclamo_ya_pago(texto: str) -> bool:
     t = (texto or "").strip().lower()
     return any(p in t for p in PALABRAS_YA_PAGO)
+
+
+def _es_agradecimiento_simple(texto: str) -> bool:
+    """True para un acuse de recibo corto sin preguntas (ej. "ok", "ok gracias")."""
+    t = (texto or "").strip().lower()
+    if "?" in t or "¿" in t:
+        return False
+    palabras = re.findall(r"[a-záéíóúñ]+", t)
+    if not palabras or len(palabras) > 5:
+        return False
+    tiene_agradecimiento = any(p in PALABRAS_AGRADECIMIENTO for p in palabras)
+    todas_validas = all(
+        p in PALABRAS_AGRADECIMIENTO or p in PALABRAS_RELLENO_AGRADECIMIENTO for p in palabras
+    )
+    return tiene_agradecimiento and todas_validas
 
 
 @asynccontextmanager
@@ -299,6 +325,10 @@ async def webhook_handler(request: Request):
                 await guardar_mensaje(msg.telefono, "user", msg.texto)
                 if _es_reclamo_ya_pago(msg.texto):
                     respuesta = MENSAJE_YA_PAGO_RECORDATORIO
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                elif _es_agradecimiento_simple(msg.texto):
+                    respuesta = MENSAJE_AGRADECIMIENTO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 else:
