@@ -551,9 +551,12 @@ async def nueva_conversacion_enviar(
 
     registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
     await guardar_mensaje(telefono, "humano", registro)
-    # No activamos modo_humano: dejamos que el bot responda automáticamente
-    # cuando la persona conteste la plantilla (ver "Caso especial" en el
-    # prompt para la plantilla de autorización de info).
+    # No dejamos modo_humano activo: si el número venía de una conversación
+    # anterior (ya resuelta o simplemente olvidada) que quedó marcada
+    # "Necesita humano", esa marca antigua bloquearía silenciosamente la
+    # respuesta automática y determinística a esta nueva plantilla. Al
+    # iniciar una plantilla nueva, la conversación se considera "fresca".
+    await desactivar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
 
 
@@ -647,7 +650,11 @@ async def nueva_masiva_enviar(
         if enviado:
             registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
             await guardar_mensaje(telefono, "humano", registro)
-            # No activamos modo_humano: dejamos que el bot responda solo.
+            # No dejamos modo_humano activo: una marca "Necesita humano" de
+            # una conversación anterior (resuelta o simplemente olvidada)
+            # bloquearía en silencio la respuesta determinística a esta
+            # plantilla nueva. Ver misma nota en nueva_conversacion_enviar.
+            await desactivar_modo_humano(telefono)
             resultados.append({"telefono": telefono, "ok": True, "detalle": ""})
         else:
             logger.error(f"Envio masivo: no se pudo enviar {plantilla} a {telefono}")
