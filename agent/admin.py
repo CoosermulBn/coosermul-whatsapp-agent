@@ -16,6 +16,7 @@ import asyncio
 import secrets
 import logging
 import tempfile
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -46,6 +47,19 @@ from agent.tools import (
 # ej. "[[adjunto:12]] leyenda del usuario", para poder mostrar la imagen/
 # archivo real en el panel sin tener que cambiar el esquema de Mensaje.
 PATRON_ADJUNTO = re.compile(r"^\[\[adjunto:(\d+)\]\]\s*")
+
+# Todos los timestamps se guardan en UTC (datetime.utcnow()). Coosermul BN
+# opera en Lima, Perú (UTC-5, sin horario de verano), así que hay que
+# restar 5 horas antes de mostrarlos en el panel; de lo contrario se ven
+# adelantados respecto a la hora real.
+OFFSET_HORA_LIMA = timedelta(hours=-5)
+
+
+def _hora_lima(dt) -> str:
+    """Formatea un datetime UTC (naive) a "dd/mm/YYYY HH:MM" en hora de Lima."""
+    if not dt:
+        return ""
+    return (dt + OFFSET_HORA_LIMA).strftime("%d/%m/%Y %H:%M")
 
 # Plantillas de mensaje aprobadas por Meta para iniciar una conversación
 # (obligatorias fuera de la ventana de 24h o con alguien que nunca escribió).
@@ -359,7 +373,7 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
                 ultimo_mensaje = "📎 Archivo adjunto"
         preview = html.escape(ultimo_mensaje[:120])
         prefijo = "Tú: " if c["ultimo_role"] == "assistant" else ""
-        fecha = c["ultima_fecha"].strftime("%d/%m/%Y %H:%M") if c["ultima_fecha"] else ""
+        fecha = _hora_lima(c["ultima_fecha"])
         badge = '<span class="badge">Necesita humano</span>' if c.get("modo_humano") else ""
         filas += f"""
         <a class="conv" href="/admin/chat/{tel}">
@@ -737,7 +751,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
     burbujas = ""
     for msg in historial:
         clase = {"assistant": "assistant", "humano": "humano"}.get(msg["role"], "user")
-        ts = msg["timestamp"].strftime("%d/%m/%Y %H:%M") if msg.get("timestamp") else ""
+        ts = _hora_lima(msg.get("timestamp"))
         etiqueta = " (tú)" if msg["role"] == "humano" else ""
 
         match = PATRON_ADJUNTO.match(msg["content"])
