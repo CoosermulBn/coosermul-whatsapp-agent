@@ -60,6 +60,16 @@ MENSAJE_COMPROBANTE_RECIBIDO = (
     'más escribe "Menú" para regresar al menú inicial.'
 )
 
+# Respuesta fija cuando el socio toca la opción "Finalizar conversación"
+# de cualquier menú (Menú A, Menú B, o el menú de opciones que se envía
+# tras la plantilla de autorización). No pasa por Claude: es un botón, no
+# texto libre, así que no hay ambigüedad que interpretar — no tiene
+# sentido arriesgar una falla de la API justo en la despedida.
+MENSAJE_DESPEDIDA = (
+    "¡Gracias por escribirnos! 🙌 Fue un gusto ayudarte. Si necesitas algo "
+    "más, aquí estaré — solo escríbeme cuando quieras. ¡Que tengas un buen día!"
+)
+
 # Respuesta fija cuando el socio presiona el botón "Sí" para hablar con el
 # Asesor personal. No pasa por Claude: garantiza que SIEMPRE se
 # escale a un humano, sin depender de que el modelo interprete el botón.
@@ -323,6 +333,18 @@ async def webhook_handler(request: Request):
             # sigue el flujo normal de abajo (pasa por Claude como texto).
             if msg.tipo == "boton" and msg.boton_id == "asesor_no":
                 msg.texto = "No, gracias. Muéstrame el menú."
+
+            # Opción "Finalizar conversación" (Menú A, Menú B, o el menú
+            # que se envía tras la plantilla de autorización): despedida
+            # fija, sin pasar por Claude.
+            if msg.tipo == "boton" and (msg.texto or "").strip() == "Finalizar conversación":
+                logger.info(f"'Finalizar conversación' elegido por {msg.telefono}")
+                respuesta = MENSAJE_DESPEDIDA
+                await guardar_mensaje(msg.telefono, "user", f"[opción de menú] {msg.texto}")
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
+                continue
 
             # Mensajes de texto vacíos: no hay nada que procesar
             if not msg.texto:
