@@ -126,6 +126,7 @@ ESTILO = """
   .user { background:#e5e7eb; margin-right:auto; }
   .assistant { background:#dcf8c6; margin-left:auto; text-align:left; }
   .humano { background:#bfdbfe; margin-left:auto; text-align:left; }
+  .sistema { background:#fee2e2; color:#991b1b; margin:6px auto; text-align:center; max-width:90%; font-size:13px; }
   .row { display:flex; }
   .ts { font-size:11px; color:#999; margin-top:2px; }
   .badge { display:inline-block; background:#f97316; color:#fff; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
@@ -372,7 +373,12 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
             if ultimo_mensaje == "📎":
                 ultimo_mensaje = "📎 Archivo adjunto"
         preview = html.escape(ultimo_mensaje[:120])
-        prefijo = "Tú: " if c["ultimo_role"] == "assistant" else ""
+        if c["ultimo_role"] == "sistema":
+            prefijo = "⚠️ "
+        elif c["ultimo_role"] == "assistant":
+            prefijo = "Tú: "
+        else:
+            prefijo = ""
         fecha = _hora_lima(c["ultima_fecha"])
         badge = '<span class="badge">Necesita humano</span>' if c.get("modo_humano") else ""
         filas += f"""
@@ -750,7 +756,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
 
     burbujas = ""
     for msg in historial:
-        clase = {"assistant": "assistant", "humano": "humano"}.get(msg["role"], "user")
+        clase = {"assistant": "assistant", "humano": "humano", "sistema": "sistema"}.get(msg["role"], "user")
         ts = _hora_lima(msg.get("timestamp"))
         etiqueta = " (tú)" if msg["role"] == "humano" else ""
 

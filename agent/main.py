@@ -267,6 +267,18 @@ async def webhook_handler(request: Request):
             if msg.es_propio:
                 continue
 
+            # Meta reportó que un envío nuestro (plantilla, documento, texto)
+            # NO se pudo entregar de verdad, aunque la API lo haya aceptado
+            # en su momento (ej. fuera de la ventana de 24h, plantilla
+            # rechazada). Lo dejamos como mensaje visible en el chat para
+            # que el equipo se entere sin tener que revisar logs.
+            if msg.tipo == "estado_fallido":
+                logger.warning(f"Registrando entrega fallida a {msg.telefono}: {msg.texto}")
+                await guardar_mensaje(
+                    msg.telefono, "sistema", f"⚠️ No se pudo entregar un mensaje anterior: {msg.texto}"
+                )
+                continue
+
             # Documentos/imágenes (ej. comprobantes de pago): respuesta fija,
             # sin pasar por Claude, para garantizar el mensaje exacto.
             if msg.tipo in ("document", "image"):

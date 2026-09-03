@@ -111,6 +111,19 @@ class ProveedorMeta(ProveedorWhatsApp):
                             f"Mensaje FALLIDO a {estado.get('recipient_id', '?')} "
                             f"(id={estado.get('id', '?')}): {detalle}"
                         )
+                        # Antes esto solo quedaba en el log de Railway: en el
+                        # panel admin el envío se veía "enviado" (la API
+                        # aceptó la solicitud) aunque Meta nunca lo entregara
+                        # de verdad (ej. plantilla rechazada, o un documento
+                        # fuera de la ventana de 24h). Lo agregamos como
+                        # mensaje al chat para que sea visible sin logs.
+                        mensajes.append(MensajeEntrante(
+                            telefono=estado.get("recipient_id", ""),
+                            texto=detalle,
+                            mensaje_id=estado.get("id", ""),
+                            es_propio=False,
+                            tipo="estado_fallido",
+                        ))
                     elif os.getenv("DEBUG_WEBHOOK_PAYLOAD", "").lower() == "true":
                         logger.info(
                             f"Estado de mensaje: {estado.get('status')} "

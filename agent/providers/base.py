@@ -18,7 +18,7 @@ class MensajeEntrante:
     texto: str          # Contenido del mensaje (o el caption, si es un adjunto)
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
-    tipo: str = "text"  # "text" | "document" | "image" | "boton" — tipo de contenido recibido
+    tipo: str = "text"  # "text" | "document" | "image" | "boton" | "estado_fallido"
     media_id: str = ""       # ID del adjunto en el proveedor (para descargarlo)
     nombre_archivo: str = "" # Nombre de archivo original, si el proveedor lo da
     boton_id: str = ""       # ID del botón presionado (si tipo == "boton")
