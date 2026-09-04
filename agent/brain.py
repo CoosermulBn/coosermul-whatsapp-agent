@@ -286,6 +286,17 @@ def obtener_mensaje_fallback() -> str:
     return config.get("fallback_message", "Disculpa, no entendí tu mensaje. ¿Podrías reformularlo?")
 
 
+# Cuando Claude ya usó la herramienta `escalar_a_humano`, lo importante
+# (notificar al equipo) ya ocurrió — no depende de que una segunda
+# llamada a la API le ponga el texto de cierre. Si esa segunda llamada
+# falla (rate limit, red, etc.), el socio no debe ver el mensaje técnico
+# de error justo después de pedir ayuda con un reclamo; mostramos esto.
+MENSAJE_ESCALADO_SIN_TEXTO = (
+    "¡Listo! 🙌 Ya avisé a nuestro equipo, en breve te atenderá una "
+    "persona aquí mismo en este chat."
+)
+
+
 def _texto_de(response) -> str:
     """Une los bloques de tipo 'text' de una respuesta de Claude."""
     return "".join(
@@ -529,6 +540,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             # le devolvemos el resultado para que continúe la conversación.
             mensajes.append({"role": "assistant", "content": response.content})
             resultados_tool = []
+            escalar_este_turno = False
             for bloque in response.content:
                 if getattr(bloque, "type", None) == "tool_use":
                     logger.info(f"Claude solicito herramienta: {bloque.name}({bloque.input})")
@@ -536,6 +548,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                     documentos_totales.extend(resultado["documentos"])
                     if resultado.get("escalar"):
                         escalar_total = True
+                        escalar_este_turno = True
                         motivo_total = resultado.get("motivo", "")
                     if resultado.get("botones"):
                         botones_total = resultado["botones"]
@@ -546,6 +559,23 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                         "tool_use_id": bloque.id,
                         "content": resultado["resultado_texto"],
                     })
+
+            # Cortamos aquí mismo en vez de pedirle a Claude una segunda
+            # vuelta para el texto de cierre: lo importante (escalar_a_humano)
+            # ya se ejecutó, y una segunda llamada que falle no debe dejar
+            # al socio sin respuesta ni mostrarle un mensaje de error justo
+            # después de pedir ayuda.
+            if escalar_este_turno:
+                logger.info("escalar_a_humano ejecutado: se corta sin segunda vuelta a Claude")
+                return {
+                    "texto": MENSAJE_ESCALADO_SIN_TEXTO,
+                    "documentos": documentos_totales,
+                    "escalar": escalar_total,
+                    "motivo_escalamiento": motivo_total,
+                    "botones": botones_total,
+                    "lista": lista_total,
+                }
+
             mensajes.append({"role": "user", "content": resultados_tool})
 
         # Si tras 2 vueltas sigue pidiendo herramientas, cortamos con un mensaje genérico.
@@ -561,8 +591,13 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
 
     except Exception:
         logger.exception("Error Claude API")
+        # Si ya se habia marcado el escalamiento (ej. la excepcion ocurrio
+        # ejecutando otra herramienta del mismo turno) el socio ya pidio
+        # ayuda con algo puntual: mejor confirmarle que fue escalado que
+        # mostrarle el mensaje tecnico generico.
+        texto = MENSAJE_ESCALADO_SIN_TEXTO if escalar_total else obtener_mensaje_error()
         return {
-            "texto": obtener_mensaje_error(),
+            "texto": texto,
             "documentos": documentos_totales,
             "escalar": escalar_total,
             "motivo_escalamiento": motivo_total,
