@@ -172,6 +172,27 @@ async def obtener_historial_completo(telefono: str) -> list[dict]:
         ]
 
 
+async def obtener_mensajes_sistema(limite: int = 500) -> list[dict]:
+    """
+    Lista los mensajes 'sistema' (alertas de entrega fallida reportadas
+    por Meta vía webhook de estado), del más reciente al más antiguo.
+    Para el informe de entregas fallidas en el panel /admin.
+    """
+    async with async_session() as session:
+        query = (
+            select(Mensaje)
+            .where(Mensaje.role == "sistema")
+            .order_by(Mensaje.timestamp.desc())
+            .limit(limite)
+        )
+        result = await session.execute(query)
+        mensajes = result.scalars().all()
+        return [
+            {"telefono": m.telefono, "content": m.content, "timestamp": m.timestamp}
+            for m in mensajes
+        ]
+
+
 async def activar_modo_humano(telefono: str):
     """Marca la conversación para que el bot deje de responder automáticamente."""
     async with async_session() as session:

@@ -31,6 +31,7 @@ from agent.memory import (
     limpiar_historial,
     obtener_adjunto,
     obtener_eventos_atencion,
+    obtener_mensajes_sistema,
 )
 from agent.providers import obtener_proveedor
 from agent.tools import (
@@ -403,6 +404,7 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
         <div style="display:flex; gap:8px;">
           <a class="btn-nueva" href="/admin/nueva">+ Nueva conversación</a>
           <a class="btn-nueva" href="/admin/nueva/masivo">+ Envío masivo</a>
+          <a class="btn-nueva" style="background:#dc2626;" href="/admin/fallos">⚠️ Entregas fallidas</a>
         </div>
       </div>
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
@@ -410,6 +412,53 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
       <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
       {filas}
       {SCRIPT_NOTIFICACIONES}
+    </body>
+    </html>
+    """
+
+
+@router.get("/admin/fallos", response_class=HTMLResponse)
+async def panel_fallos(usuario: str = Depends(_verificar_credenciales)):
+    """
+    Lista todas las entregas fallidas reportadas por Meta (estado
+    "failed" vía webhook) que se registraron como mensaje 'sistema' en
+    cada chat, para poder revisarlas todas juntas sin entrar conversación
+    por conversación.
+    """
+    fallos = await obtener_mensajes_sistema()
+    filas = ""
+    for f in fallos:
+        tel = html.escape(f["telefono"] or "(desconocido)")
+        socio = identificar_socio_por_telefono(f["telefono"] or "")
+        nombre_html = f'<span class="nombre-socio">{html.escape(socio["nombre"])}</span> · ' if socio else ""
+        fecha = _hora_lima(f["timestamp"])
+        detalle = html.escape(f["content"])
+        filas += f"""
+        <a class="conv" href="/admin/chat/{tel}">
+          <div class="tel">{nombre_html}{tel}</div>
+          <div class="preview">{detalle}</div>
+          <div class="meta">{fecha}</div>
+        </a>
+        """
+    if not fallos:
+        filas = '<div class="empty">No hay entregas fallidas registradas.</div>'
+
+    return f"""
+    <html>
+    <head><title>Entregas fallidas — Coosermul BN</title>{ESTILO}</head>
+    <body>
+      <a class="back" href="/admin">&larr; Volver a conversaciones</a>
+      <div class="toolbar">
+        <div>
+          <h1>Entregas fallidas</h1>
+          <div class="sub">
+            Mensajes que Meta aceptó enviar pero NO pudo entregar de verdad
+            (plantilla fuera de la ventana de 24h, número no tiene WhatsApp,
+            plantilla rechazada, etc.) — {len(fallos)} en total.
+          </div>
+        </div>
+      </div>
+      {filas}
     </body>
     </html>
     """
