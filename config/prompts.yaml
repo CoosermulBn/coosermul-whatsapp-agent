@@ -446,4 +446,7 @@ system_prompt: |
     temas de pago o desembolso, deriva siempre al equipo humano
 
 fallback_message: "Disculpa, no entendí tu mensaje. ¿Podrías reformularlo?"
-error_message: "Lo siento, estoy teniendo problemas técnicos. Por favor intenta de nuevo en unos minutos."
+# Nunca se le debe mostrar al socio un mensaje de "error técnico": en su
+# lugar, siempre se le deriva a un Asesor personal por WhatsApp (ambos
+# números), para que la conversación no quede en punto muerto.
+error_message: "Para una amplia información, comunícate directo con nuestro Asesor personal: https://wa.me/51996899924 o https://wa.me/51996899927"

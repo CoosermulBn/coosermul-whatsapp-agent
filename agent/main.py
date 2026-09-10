@@ -106,10 +106,16 @@ MENU_B_FILAS = [
 
 
 def _es_primera_respuesta_a_autorizacion(historial: list[dict]) -> bool:
-    """True si el único mensaje previo es el envío de la plantilla de autorización."""
-    return (
-        len(historial) == 1
-        and historial[0]["content"].startswith(MARCADOR_PLANTILLA_AUTORIZACION)
+    """
+    True si el socio todavía no respondió nunca a esta plantilla — aunque
+    se la hayan reenviado más de una vez sin que conteste (ej. un nuevo
+    envío meses después). Antes exigía `len(historial) == 1`, lo que
+    fallaba justo en ese caso: al reenviar la plantilla, el historial
+    pasa a tener 2+ marcadores y la respuesta terminaba en manos de
+    Claude en vez de en este flujo determinístico.
+    """
+    return bool(historial) and all(
+        m["content"].startswith(MARCADOR_PLANTILLA_AUTORIZACION) for m in historial
     )
 
 
@@ -182,10 +188,17 @@ PALABRAS_RELLENO_AGRADECIMIENTO = {"muchas", "mil", "de", "acuerdo", "todo", "es
 
 
 def _es_primera_respuesta_a_recordatorio(historial: list[dict]) -> bool:
-    """True si el único mensaje previo es el envío de la plantilla de recordatorio de pago."""
-    return (
-        len(historial) == 1
-        and historial[0]["content"].startswith(MARCADOR_PLANTILLA_RECORDATORIO)
+    """
+    True si el socio todavía no respondió nunca a esta plantilla — aunque
+    se la hayan reenviado más de una vez sin respuesta (ej. el
+    recordatorio del mes siguiente, antes de que conteste al anterior).
+    Antes exigía `len(historial) == 1`, lo que fallaba justo en ese caso:
+    al reenviar la plantilla, el historial pasa a tener 2+ marcadores y
+    la respuesta terminaba en manos de Claude en vez de en este flujo
+    determinístico (causa del mensaje de error técnico reportado).
+    """
+    return bool(historial) and all(
+        m["content"].startswith(MARCADOR_PLANTILLA_RECORDATORIO) for m in historial
     )
 
 
@@ -210,12 +223,14 @@ def _es_agradecimiento_simple(texto: str) -> bool:
 
 
 # Mensaje para cuando la respuesta a una plantilla no encaja claramente
-# en ningún caso reconocido — se deriva a un número de contacto en vez
-# de asumir qué necesita o de escalar al Asesor personal.
-MENSAJE_NO_RECONOCIDO_PLANTILLA = (
-    "Para una amplia información por favor escríbenos a 996899927. "
-    "También puedes escribirnos directo aquí: https://wa.me/51996899924"
+# en ningún caso reconocido — se deriva a un Asesor personal con el link
+# de WhatsApp de AMBOS números de contacto (996899924 y 996899927), en
+# vez de asumir qué necesita o de escalar internamente.
+MENSAJE_DERIVACION_ASESOR = (
+    "Para una amplia información, comunícate directo con nuestro Asesor "
+    "personal: https://wa.me/51996899924 o https://wa.me/51996899927"
 )
+MENSAJE_NO_RECONOCIDO_PLANTILLA = MENSAJE_DERIVACION_ASESOR
 
 PALABRAS_SOLICITUD_INFO_RECORDATORIO = (
     "cuenta", "cuentas", "pagar", "pago", "monto", "informacion",

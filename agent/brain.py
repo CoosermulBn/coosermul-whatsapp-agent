@@ -277,7 +277,11 @@ def cargar_system_prompt() -> str:
 def obtener_mensaje_error() -> str:
     """Retorna el mensaje de error configurado en prompts.yaml."""
     config = cargar_config_prompts()
-    return config.get("error_message", "Lo siento, estoy teniendo problemas técnicos. Por favor intenta de nuevo en unos minutos.")
+    return config.get(
+        "error_message",
+        "Para una amplia información, comunícate directo con nuestro Asesor "
+        "personal: https://wa.me/51996899924 o https://wa.me/51996899927",
+    )
 
 
 def obtener_mensaje_fallback() -> str:
