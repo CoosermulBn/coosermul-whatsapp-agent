@@ -16,7 +16,7 @@ import asyncio
 import secrets
 import logging
 import tempfile
-from datetime import timedelta
+from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -128,6 +128,7 @@ ESTILO = """
   .assistant { background:#dcf8c6; margin-left:auto; text-align:left; }
   .humano { background:#bfdbfe; margin-left:auto; text-align:left; }
   .sistema { background:#fee2e2; color:#991b1b; margin:6px auto; text-align:center; max-width:90%; font-size:13px; }
+  .aviso-ventana { background:#fef3c7; color:#92400e; border:1px solid #f59e0b; border-radius:10px; padding:12px 16px; margin:12px 0; font-size:13px; }
   .row { display:flex; }
   .ts { font-size:11px; color:#999; margin-top:2px; }
   .badge { display:inline-block; background:#f97316; color:#fff; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; margin-left:8px; vertical-align:middle; }
@@ -830,6 +831,27 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
     if not historial:
         burbujas = '<div class="empty">Sin mensajes.</div>'
 
+    # WhatsApp solo entrega documentos/texto libre (no plantillas) dentro
+    # de las 24h desde el ÚLTIMO mensaje que el socio escribió. Fuera de
+    # esa ventana, la API acepta el envío pero Meta lo rechaza despues
+    # (error 131047) -- y eso ya paso varias veces sin que se notara
+    # hasta revisar el chat. Avisamos ANTES de que el equipo envíe algo.
+    ultimo_mensaje_socio = next((m for m in reversed(historial) if m["role"] == "user"), None)
+    ventana_24h_cerrada = (
+        ultimo_mensaje_socio is None
+        or (datetime.utcnow() - ultimo_mensaje_socio["timestamp"]) > timedelta(hours=24)
+    )
+    aviso_ventana = ""
+    if ventana_24h_cerrada:
+        aviso_ventana = """
+        <div class="aviso-ventana">
+          ⚠️ Este socio no te escribió en las últimas 24 horas (o nunca te escribió).
+          Si envías documentos o un mensaje ahora, WhatsApp probablemente los rechace
+          (error 131047 "Re-engagement message"). Espera a que te escriba, o mándale
+          primero una plantilla aprobada desde "+ Nueva conversación".
+        </div>
+        """
+
     tel_seguro = html.escape(telefono)
     socio = identificar_socio_por_telefono(telefono)
     titulo_chat = f"{html.escape(socio['nombre'])} ({tel_seguro})" if socio else tel_seguro
@@ -859,6 +881,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
       <div id="feed-eventos" class="feed-eventos"><h4>Actividad reciente</h4><div id="feed-eventos-lista"></div></div>
       <h1>{titulo_chat}{badge}</h1>
       {burbujas}
+      {aviso_ventana}
       <div class="caja-paquetes">
         <h4>Enviar documentos (tras evaluar boleta de pago)</h4>
         <p class="sub" style="margin:0 0 8px 0;">Revisa la boleta adjunta arriba y envía el paquete correspondiente.</p>
