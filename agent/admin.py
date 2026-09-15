@@ -102,6 +102,15 @@ PLANTILLAS_DISPONIBLES = {
             "interesa recibir esta información, respóndenos SÍ."
         ),
     },
+    "campana_navidad_2026": {
+        "etiqueta": "Campaña Navidad 2026",
+        "idioma": "es",
+        "variables": [],
+        "vista_previa": (
+            "📢 ¡Empezó la inscripción para tickets de pavo y canastas "
+            "navideñas! 🎄\n\n¿Deseas más información? [Sí] [No]"
+        ),
+    },
 }
 
 logger = logging.getLogger("agentkit")

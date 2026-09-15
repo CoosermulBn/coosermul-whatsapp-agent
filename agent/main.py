@@ -38,7 +38,12 @@ from agent.memory import (
 )
 from agent.providers import obtener_proveedor
 from agent.admin import router as admin_router
-from agent.tools import resolver_info_institucional, resolver_cuentas_abono, ruta_completa
+from agent.tools import (
+    resolver_info_institucional,
+    resolver_cuentas_abono,
+    resolver_paquete_navidad,
+    ruta_completa,
+)
 
 load_dotenv()
 
@@ -231,6 +236,38 @@ MENSAJE_DERIVACION_ASESOR = (
     "personal: https://wa.me/51996899924 o https://wa.me/51996899927"
 )
 MENSAJE_NO_RECONOCIDO_PLANTILLA = MENSAJE_DERIVACION_ASESOR
+
+
+# La primera respuesta a la plantilla "Campaña Navidad 2026" (botones Sí/No
+# de la propia plantilla) también se maneja 100% en código, por la misma
+# razón que las anteriores.
+MARCADOR_PLANTILLA_NAVIDAD = "[plantilla enviada: Campaña Navidad 2026]"
+
+MENSAJE_NAVIDAD_NO = (
+    "¡Gracias por responder! Cualquier consulta más adelante, aquí estaremos 🎄"
+)
+MENSAJE_NAVIDAD_SI = (
+    "¡Listo! 🎄 Te comparto las 3 promociones de esta Navidad: la Bolsa "
+    "Navideña, la Gran Rifa Anual y el Sorteo \"El Buen Pagador\". Cualquier "
+    "consulta, escríbenos por este medio."
+)
+
+
+def _es_primera_respuesta_a_navidad(historial: list[dict]) -> bool:
+    """True si el socio todavía no respondió nunca a esta plantilla."""
+    return bool(historial) and all(
+        m["content"].startswith(MARCADOR_PLANTILLA_NAVIDAD) for m in historial
+    )
+
+
+def _es_si_navidad(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    return bool(re.fullmatch(r"s[ií]", t)) or bool(re.search(r"\bs[ií]\b", t))
+
+
+def _es_no_navidad(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    return bool(re.search(r"\bno\b", t))
 
 PALABRAS_SOLICITUD_INFO_RECORDATORIO = (
     "cuenta", "cuentas", "pagar", "pago", "monto", "informacion",
@@ -442,6 +479,36 @@ async def webhook_handler(request: Request):
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (recordatorio pago): {respuesta}")
+                continue
+
+            # Primera respuesta a la plantilla de Campaña Navidad 2026
+            # (botones Sí/No de la propia plantilla): manejo 100%
+            # determinístico, sin pasar por Claude.
+            if _es_primera_respuesta_a_navidad(historial):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                if _es_si_navidad(msg.texto):
+                    archivos = resolver_paquete_navidad()
+                    for nombre_archivo in archivos:
+                        ok = await proveedor.enviar_documento(
+                            msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
+                        )
+                        if not ok:
+                            logger.error(
+                                f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
+                                "(campaña navidad, respuesta Sí)"
+                            )
+                    respuesta = MENSAJE_NAVIDAD_SI
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                elif _es_no_navidad(msg.texto):
+                    respuesta = MENSAJE_NAVIDAD_NO
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                else:
+                    respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
+                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono} (campaña navidad): {respuesta}")
                 continue
 
             # Generar respuesta con Claude (puede incluir documentos a enviar

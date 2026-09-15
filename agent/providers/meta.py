@@ -94,6 +94,22 @@ class ProveedorMeta(ProveedorWhatsApp):
                                 tipo="boton",
                                 boton_id=list_reply.get("id", ""),
                             ))
+                    elif tipo_msg == "button":
+                        # El socio presiono un boton de respuesta rapida DE
+                        # UNA PLANTILLA (distinto de "interactive": Meta
+                        # entrega esto como su propio tipo de mensaje, con
+                        # el texto visible del boton y un "payload" que
+                        # Meta asigna solo (algunas cuentas no permiten un
+                        # payload personalizado al crear la plantilla).
+                        boton = msg.get("button", {})
+                        mensajes.append(MensajeEntrante(
+                            telefono=remitente,
+                            texto=boton.get("text", ""),
+                            mensaje_id=msg.get("id", ""),
+                            es_propio=False,
+                            tipo="boton",
+                            boton_id=boton.get("payload", ""),
+                        ))
 
                 # Meta también manda actualizaciones de estado de los
                 # mensajes que EL BOT envió (enviado/entregado/leído/
