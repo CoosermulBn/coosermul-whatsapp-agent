@@ -440,6 +440,10 @@ async def webhook_handler(request: Request):
                                 f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
                                 "(paquete de información, respuesta a autorización)"
                             )
+                            await guardar_mensaje(
+                                msg.telefono, "sistema",
+                                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" (paquete de información).",
+                            )
                     respuesta = MENSAJE_INFO_AUTORIZACION_ENVIADA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
@@ -475,6 +479,10 @@ async def webhook_handler(request: Request):
                                 f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
                                 "(cuentas de abono, respuesta a recordatorio de pago)"
                             )
+                            await guardar_mensaje(
+                                msg.telefono, "sistema",
+                                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" (cuentas de abono).",
+                            )
                     respuesta = MENSAJE_CUENTAS_ABONO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
@@ -496,6 +504,10 @@ async def webhook_handler(request: Request):
                             logger.error(
                                 f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
                                 "(campaña navidad, respuesta Sí)"
+                            )
+                            await guardar_mensaje(
+                                msg.telefono, "sistema",
+                                f"⚠️ No se pudo enviar la lámina \"{nombre_archivo}\" (Campaña Navidad).",
                             )
                     respuesta = MENSAJE_NAVIDAD_SI
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
@@ -528,6 +540,10 @@ async def webhook_handler(request: Request):
                 )
                 if not enviado:
                     logger.error(f"No se pudo enviar el documento {doc['nombre_archivo']} a {msg.telefono}")
+                    await guardar_mensaje(
+                        msg.telefono, "sistema",
+                        f"⚠️ No se pudo enviar el documento \"{doc['nombre_archivo']}\".",
+                    )
 
             # Enviar respuesta por WhatsApp via el proveedor
             await proveedor.enviar_mensaje(msg.telefono, respuesta)

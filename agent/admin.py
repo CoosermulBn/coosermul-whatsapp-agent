@@ -1003,6 +1003,7 @@ async def enviar_paquete_credito_manual(telefono: str, usuario: str = Depends(_v
             enviados.append(nombre_archivo)
         else:
             logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (paquete de crédito manual)")
+            await guardar_mensaje(telefono, "sistema", f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\".")
 
     if enviados:
         registro = "[paquete de crédito enviado] " + ", ".join(enviados)
@@ -1031,6 +1032,7 @@ async def enviar_paquete_inscripcion_manual(
             enviados.append(nombre_archivo)
         else:
             logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (paquete de inscripción manual)")
+            await guardar_mensaje(telefono, "sistema", f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\".")
 
     if enviados:
         registro = f"[paquete de inscripción enviado, perfil {perfil}] " + ", ".join(enviados)
@@ -1051,6 +1053,7 @@ async def enviar_cuentas_abono_manual(telefono: str, usuario: str = Depends(_ver
             enviados.append(nombre_archivo)
         else:
             logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (cuentas de abono manual)")
+            await guardar_mensaje(telefono, "sistema", f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\".")
 
     if enviados:
         registro = "[cuentas de abono enviadas] " + ", ".join(enviados)
@@ -1071,6 +1074,7 @@ async def enviar_info_institucional_manual(telefono: str, usuario: str = Depends
             enviados.append(nombre_archivo)
         else:
             logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (info institucional manual)")
+            await guardar_mensaje(telefono, "sistema", f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\".")
 
     if enviados:
         registro = "[paquete de información enviado] " + ", ".join(enviados)
@@ -1091,6 +1095,7 @@ async def enviar_paquete_navidad_manual(telefono: str, usuario: str = Depends(_v
             enviados.append(nombre_archivo)
         else:
             logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (campaña navideña manual)")
+            await guardar_mensaje(telefono, "sistema", f"⚠️ No se pudo enviar la lámina \"{nombre_archivo}\".")
 
     if enviados:
         registro = "[láminas de Campaña Navideña enviadas] " + ", ".join(enviados)
