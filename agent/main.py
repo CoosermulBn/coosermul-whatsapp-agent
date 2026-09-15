@@ -249,7 +249,8 @@ MENSAJE_NAVIDAD_NO = (
 MENSAJE_NAVIDAD_SI = (
     "¡Listo! 🎄 Te comparto las 3 promociones de esta Navidad: la Bolsa "
     "Navideña, la Gran Rifa Anual y el Sorteo \"El Buen Pagador\". Cualquier "
-    "consulta, escríbenos por este medio."
+    "consulta, escríbenos directo aquí: https://wa.me/51996899924 o "
+    "https://wa.me/51996899927"
 )
 
 
