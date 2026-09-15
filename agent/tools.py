@@ -248,6 +248,15 @@ FORMATOS_INFO_INSTITUCIONAL = [
     "Catalogo_COOSERMUL_BN 2026.pdf",
 ]
 
+# Volantes de la Campaña Navideña 2026 (Bolsa Navideña, Gran Rifa Anual,
+# Sorteo "El Buen Pagador") — se envían como imágenes (no PDF) para que
+# se vean como fotos grandes directo en el chat de WhatsApp.
+FORMATOS_CAMPANA_NAVIDAD = [
+    "Campana Navidena 2026 - Bolsa Navidena.png",
+    "Campana Navidena 2026 - Gran Rifa Anual.png",
+    "Campana Navidena 2026 - Sorteo El Buen Pagador.png",
+]
+
 KNOWLEDGE_DIR = "knowledge"
 
 
@@ -292,6 +301,11 @@ def resolver_cuentas_abono() -> list[str]:
 def resolver_info_institucional() -> list[str]:
     """Retorna los archivos del paquete de información institucional (carta, tríptico, catálogo)."""
     return list(FORMATOS_INFO_INSTITUCIONAL)
+
+
+def resolver_paquete_navidad() -> list[str]:
+    """Retorna los 3 volantes de la Campaña Navideña 2026."""
+    return list(FORMATOS_CAMPANA_NAVIDAD)
 
 
 def listar_formatos_disponibles() -> list[str]:

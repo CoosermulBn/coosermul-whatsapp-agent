@@ -39,6 +39,7 @@ from agent.tools import (
     resolver_paquete_inscripcion,
     resolver_cuentas_abono,
     resolver_info_institucional,
+    resolver_paquete_navidad,
     ruta_completa,
     buscar_socios,
     identificar_socio_por_telefono,
@@ -909,6 +910,10 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
               onsubmit="return confirm('¿Enviar el paquete de información (carta, tríptico y catálogo)?');">
           <button class="btn-paquete" type="submit">📎 Enviar paquete de información</button>
         </form>
+        <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_navidad"
+              onsubmit="return confirm('¿Enviar las 3 láminas de la Campaña Navideña 2026?');">
+          <button class="btn-paquete" type="submit">🎄 Enviar Campaña Navideña 2026</button>
+        </form>
       </div>
       <form class="reply" method="post" action="/admin/chat/{tel_seguro}/responder" enctype="multipart/form-data">
         <textarea name="mensaje" placeholder="Escribe tu respuesta (opcional si adjuntas un archivo)..."></textarea>
@@ -1060,6 +1065,26 @@ async def enviar_info_institucional_manual(telefono: str, usuario: str = Depends
 
     if enviados:
         registro = "[paquete de información enviado] " + ", ".join(enviados)
+        await guardar_mensaje(telefono, "humano", registro)
+        await activar_modo_humano(telefono)
+    return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/chat/{telefono}/enviar_navidad")
+async def enviar_paquete_navidad_manual(telefono: str, usuario: str = Depends(_verificar_credenciales)):
+    """El equipo envía manualmente las 3 láminas de la Campaña Navideña 2026."""
+    proveedor = obtener_proveedor()
+    archivos = resolver_paquete_navidad()
+    enviados = []
+    for nombre_archivo in archivos:
+        ok = await proveedor.enviar_documento(telefono, ruta_completa(nombre_archivo), nombre_archivo)
+        if ok:
+            enviados.append(nombre_archivo)
+        else:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (campaña navideña manual)")
+
+    if enviados:
+        registro = "[láminas de Campaña Navideña enviadas] " + ", ".join(enviados)
         await guardar_mensaje(telefono, "humano", registro)
         await activar_modo_humano(telefono)
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)

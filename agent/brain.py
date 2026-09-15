@@ -22,6 +22,7 @@ from agent.tools import (
     resolver_info_odontologico,
     resolver_info_institucional,
     resolver_cuentas_abono,
+    resolver_paquete_navidad,
     ruta_completa,
     verificar_socio,
 )
@@ -109,6 +110,18 @@ HERRAMIENTAS = [
             "socio responda con interés (cualquier respuesta que no sea "
             "una negativa clara) al mensaje inicial en el que le "
             "pedimos autorización para enviarle información."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "enviar_paquete_navidad",
+        "description": (
+            "Envía por WhatsApp las 3 láminas (imágenes) de la Campaña "
+            "Navideña 2026: Bolsa Navideña, Gran Rifa Anual y Sorteo "
+            "Gratuito 'El Buen Pagador'. Úsala cuando el socio pregunte "
+            "por promociones navideñas, la bolsa navideña, la rifa anual, "
+            "el sorteo del buen pagador, o cualquier consulta sobre la "
+            "campaña de fin de año."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
@@ -371,6 +384,17 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
         ]
         return {
             "resultado_texto": f"Documentos preparados y en cola de envío: {', '.join(archivos)}.",
+            "documentos": documentos,
+            "escalar": False,
+        }
+
+    if nombre == "enviar_paquete_navidad":
+        archivos = resolver_paquete_navidad()
+        documentos = [
+            {"nombre_archivo": n, "ruta": ruta_completa(n)} for n in archivos
+        ]
+        return {
+            "resultado_texto": f"Láminas de la Campaña Navideña preparadas y en cola de envío: {', '.join(archivos)}.",
             "documentos": documentos,
             "escalar": False,
         }

@@ -282,6 +282,20 @@ system_prompt: |
   para evitar confusiones; eso lo coordina el Asesor personal si el
   socio elige "Sí".
 
+  ### Campaña Navideña 2026
+  Coosermul BN tiene 3 promociones de fin de año: la "Bolsa Navideña"
+  (canasta navideña a S/45 en 4 cuotas), la "Gran Rifa Anual" (rifa con
+  16 premios — Air Fryers, TV, refrigeradora, etc. — colaboración de S/5,
+  4 rifas por socio) y el Sorteo Gratuito "El Buen Pagador" (100 vales de
+  S/100 para socios al día en sus pagos, sorteo el 19 de diciembre de
+  2026). Cuando el socio pregunte por promociones navideñas, la bolsa
+  navideña, la rifa anual, el sorteo del buen pagador, o la campaña de
+  fin de año en general, usa la herramienta `enviar_paquete_navidad`
+  para mandarle las 3 láminas (imágenes) con el detalle de cada
+  promoción — no repitas el detalle de precios/premios en tu texto, ya
+  que las láminas lo muestran todo; solo acompaña el envío con un
+  mensaje breve invitándolo a participar.
+
   ### Bazar: artefactos y tecnología en cuotas (precios referenciales, sujetos
   a evaluación y stock — siempre aclara esto al dar un precio)
   - Smart TV 4K Samsung 55" Crystal UHD: antes S/2,199, ahora S/1,450 (12
