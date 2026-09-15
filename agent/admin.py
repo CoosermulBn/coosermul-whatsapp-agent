@@ -644,11 +644,24 @@ MAX_ENVIOS_MASIVOS = 200
 PAUSA_ENTRE_ENVIOS_MASIVOS = 0.4  # segundos, para no chocar con limites de Meta
 
 
+def _placeholder_masivo(info: dict) -> str:
+    """Ejemplo de línea para el textarea de envío masivo, según cuántas
+    variables tenga la plantilla (una plantilla sin variables solo
+    necesita el teléfono — antes el placeholder era fijo y siempre
+    mostraba un nombre de ejemplo, aunque la plantilla no lo pidiera)."""
+    if not info["variables"]:
+        return "51987654321\n51912345678"
+    ejemplo_valores = ["Juan Pérez", "150.00", "20/08/2026"]
+    partes = ["51987654321"] + ejemplo_valores[: len(info["variables"])]
+    return ",".join(partes)
+
+
 @router.get("/admin/nueva/masivo", response_class=HTMLResponse)
 async def nueva_masiva_form(usuario: str = Depends(_verificar_credenciales)):
     """Formulario para enviar la misma plantilla a una lista de números."""
     opciones = "".join(
-        f'<option value="{nombre}">{html.escape(info["etiqueta"])}</option>'
+        f'<option value="{nombre}" data-placeholder="{html.escape(_placeholder_masivo(info))}">'
+        f'{html.escape(info["etiqueta"])}</option>'
         for nombre, info in PLANTILLAS_DISPONIBLES.items()
     )
     bloques_ayuda = ""
@@ -684,7 +697,7 @@ async def nueva_masiva_form(usuario: str = Depends(_verificar_credenciales)):
         </label>
         {bloques_ayuda}
         <label>Números y variables (uno por línea, separados por coma)
-          <textarea name="lista" required rows="10" placeholder="51987654321,Juan Pérez&#10;51912345678,María López"
+          <textarea name="lista" id="textarea-lista" required rows="10" placeholder="51987654321"
             style="width:100%; font-family:monospace; font-size:13px; padding:10px; border-radius:8px; border:1px solid #ddd; box-sizing:border-box; margin-top:6px;"></textarea>
         </label>
         <button type="submit">Enviar a todos</button>
@@ -692,10 +705,13 @@ async def nueva_masiva_form(usuario: str = Depends(_verificar_credenciales)):
       <script>
         var select = document.getElementById('select-plantilla-masivo');
         var bloques = document.querySelectorAll('.bloque-plantilla');
+        var textarea = document.getElementById('textarea-lista');
         select.addEventListener('change', function () {{
           bloques.forEach(function (b) {{
             b.style.display = b.getAttribute('data-plantilla') === select.value ? 'block' : 'none';
           }});
+          var opcion = select.options[select.selectedIndex];
+          textarea.placeholder = opcion ? (opcion.getAttribute('data-placeholder') || '51987654321') : '51987654321';
         }});
       </script>
     </body>
