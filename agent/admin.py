@@ -1116,7 +1116,11 @@ async def enviar_paquete_navidad_manual(telefono: str, usuario: str = Depends(_v
     if enviados:
         registro = "[láminas de Campaña Navideña enviadas] " + ", ".join(enviados)
         await guardar_mensaje(telefono, "humano", registro)
-        await activar_modo_humano(telefono)
+        # A diferencia de los paquetes de crédito/inscripción (donde un
+        # humano evaluó un caso puntual y debe seguir atendiéndolo), esto
+        # es un envío promocional: no bloqueamos al bot, para que siga
+        # respondiendo con normalidad al socio después (igual que cuando
+        # el propio bot envía este paquete automáticamente al responder "Sí").
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
 
 
