@@ -507,13 +507,22 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     # La API de Claude solo acepta los roles "user" y "assistant". Los
     # mensajes que escribió un humano del equipo (role="humano", guardados
     # desde el panel /admin) se mapean a "assistant" para que Claude tenga
-    # continuidad de la conversación sin romper la llamada a la API.
+    # continuidad de la conversación sin romper la llamada a la API. Los
+    # mensajes "sistema" (alertas internas de entrega fallida, ver
+    # memory.obtener_mensajes_sistema) no son parte de la conversación con
+    # el socio y se excluyen por completo: un rol distinto de user/assistant
+    # hace que la API de Claude falle con TODO mensaje siguiente del socio
+    # mientras ese mensaje siga dentro de las últimas 20 entradas del
+    # historial — causa del bug donde el bot dejaba de responder y
+    # devolvía el mensaje genérico de error ante cualquier cosa que
+    # escribiera el socio.
     mensajes = [
         {
             "role": "assistant" if m["role"] == "humano" else m["role"],
             "content": m["content"],
         }
         for m in historial
+        if m["role"] != "sistema"
     ]
     mensajes.append({"role": "user", "content": mensaje})
 
