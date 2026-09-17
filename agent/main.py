@@ -112,15 +112,17 @@ MENU_B_FILAS = [
 
 def _es_primera_respuesta_a_autorizacion(historial: list[dict]) -> bool:
     """
-    True si el socio todavía no respondió nunca a esta plantilla — aunque
-    se la hayan reenviado más de una vez sin que conteste (ej. un nuevo
-    envío meses después). Antes exigía `len(historial) == 1`, lo que
-    fallaba justo en ese caso: al reenviar la plantilla, el historial
-    pasa a tener 2+ marcadores y la respuesta terminaba en manos de
-    Claude en vez de en este flujo determinístico.
+    True si lo último que recibió el socio, antes de este mensaje, fue
+    justo esta plantilla — sin importar qué haya pasado antes en la
+    conversación (ej. socios con historial previo de otros temas).
+    Antes exigía `len(historial) == 1`, y luego que *todo* el historial
+    fueran marcadores de esta plantilla; ambas fallaban con cualquier
+    socio que ya hubiera escrito antes por otro motivo, mandando la
+    respuesta a Claude en vez de a este flujo determinístico (causa del
+    bug donde el bot no enviaba el paquete y derivaba a un asesor).
     """
-    return bool(historial) and all(
-        m["content"].startswith(MARCADOR_PLANTILLA_AUTORIZACION) for m in historial
+    return bool(historial) and historial[-1]["content"].startswith(
+        MARCADOR_PLANTILLA_AUTORIZACION
     )
 
 
@@ -194,16 +196,16 @@ PALABRAS_RELLENO_AGRADECIMIENTO = {"muchas", "mil", "de", "acuerdo", "todo", "es
 
 def _es_primera_respuesta_a_recordatorio(historial: list[dict]) -> bool:
     """
-    True si el socio todavía no respondió nunca a esta plantilla — aunque
-    se la hayan reenviado más de una vez sin respuesta (ej. el
-    recordatorio del mes siguiente, antes de que conteste al anterior).
-    Antes exigía `len(historial) == 1`, lo que fallaba justo en ese caso:
-    al reenviar la plantilla, el historial pasa a tener 2+ marcadores y
-    la respuesta terminaba en manos de Claude en vez de en este flujo
-    determinístico (causa del mensaje de error técnico reportado).
+    True si lo último que recibió el socio, antes de este mensaje, fue
+    justo esta plantilla — sin importar qué haya pasado antes en la
+    conversación (ej. socios con historial previo de otros temas).
+    Antes exigía `len(historial) == 1`, y luego que *todo* el historial
+    fueran marcadores de esta plantilla; ambas fallaban con cualquier
+    socio que ya hubiera escrito antes por otro motivo, mandando la
+    respuesta a Claude en vez de a este flujo determinístico.
     """
-    return bool(historial) and all(
-        m["content"].startswith(MARCADOR_PLANTILLA_RECORDATORIO) for m in historial
+    return bool(historial) and historial[-1]["content"].startswith(
+        MARCADOR_PLANTILLA_RECORDATORIO
     )
 
 
@@ -255,9 +257,17 @@ MENSAJE_NAVIDAD_SI = (
 
 
 def _es_primera_respuesta_a_navidad(historial: list[dict]) -> bool:
-    """True si el socio todavía no respondió nunca a esta plantilla."""
-    return bool(historial) and all(
-        m["content"].startswith(MARCADOR_PLANTILLA_NAVIDAD) for m in historial
+    """
+    True si lo último que recibió el socio, antes de este mensaje, fue
+    justo esta plantilla — sin importar qué haya pasado antes en la
+    conversación. Exigir que *todo* el historial fueran marcadores de
+    esta plantilla fallaba con cualquier socio que ya hubiera escrito
+    antes por otro motivo (el caso normal, no la excepción), mandando
+    la respuesta a Claude en vez de a este flujo determinístico — causa
+    del bug donde el bot no enviaba el paquete y derivaba a un asesor.
+    """
+    return bool(historial) and historial[-1]["content"].startswith(
+        MARCADOR_PLANTILLA_NAVIDAD
     )
 
 
