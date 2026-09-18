@@ -163,8 +163,12 @@ class ProveedorMeta(ProveedorWhatsApp):
             "type": "text",
             "text": {"body": mensaje},
         }
-        async with httpx.AsyncClient() as client:
-            r = await client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                r = await client.post(url, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                logger.error(f"Error de red enviando mensaje via Meta API: {e}")
+                return False
             if r.status_code != 200:
                 logger.error(f"Error Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
@@ -181,6 +185,9 @@ class ProveedorMeta(ProveedorWhatsApp):
                     r = await client.post(url, headers=headers, data=data, files=files, timeout=60)
         except FileNotFoundError:
             logger.error(f"Archivo no encontrado para subir a Meta: {ruta_archivo}")
+            return None
+        except httpx.HTTPError as e:
+            logger.error(f"Error de red subiendo media a Meta: {e}")
             return None
         if r.status_code != 200:
             logger.error(f"Error subiendo media a Meta: {r.status_code} — {r.text}")
@@ -231,8 +238,12 @@ class ProveedorMeta(ProveedorWhatsApp):
                 "type": "document",
                 "document": contenido,
             }
-        async with httpx.AsyncClient() as client:
-            r = await client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                r = await client.post(url, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                logger.error(f"Error de red enviando documento via Meta API: {e}")
+                return False
             if r.status_code != 200:
                 logger.error(f"Error enviando documento via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
@@ -264,8 +275,12 @@ class ProveedorMeta(ProveedorWhatsApp):
                 "action": {"buttons": botones},
             },
         }
-        async with httpx.AsyncClient() as client:
-            r = await client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                r = await client.post(url, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                logger.error(f"Error de red enviando botones via Meta API: {e}")
+                return False
             if r.status_code != 200:
                 logger.error(f"Error enviando botones via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
@@ -306,8 +321,12 @@ class ProveedorMeta(ProveedorWhatsApp):
                 },
             },
         }
-        async with httpx.AsyncClient() as client:
-            r = await client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                r = await client.post(url, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                logger.error(f"Error de red enviando lista via Meta API: {e}")
+                return False
             if r.status_code != 200:
                 logger.error(f"Error enviando lista via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
@@ -344,8 +363,12 @@ class ProveedorMeta(ProveedorWhatsApp):
                 "components": componentes,
             },
         }
-        async with httpx.AsyncClient() as client:
-            r = await client.post(url, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                r = await client.post(url, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                logger.error(f"Error de red enviando plantilla via Meta API: {e}")
+                return False
             if r.status_code != 200:
                 logger.error(f"Error enviando plantilla via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
@@ -360,18 +383,22 @@ class ProveedorMeta(ProveedorWhatsApp):
             return None
         url_info = f"https://graph.facebook.com/{self.api_version}/{media_id}"
         headers = {"Authorization": f"Bearer {self.access_token}"}
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url_info, headers=headers, timeout=30)
-            if r.status_code != 200:
-                logger.error(f"Error obteniendo info de media {media_id}: {r.status_code} — {r.text}")
-                return None
-            info = r.json()
-            media_url = info.get("url")
-            mime_type = info.get("mime_type", "application/octet-stream")
-            if not media_url:
-                return None
-            r2 = await client.get(media_url, headers=headers, timeout=60)
-            if r2.status_code != 200:
-                logger.error(f"Error descargando media {media_id}: {r2.status_code}")
-                return None
-            return r2.content, mime_type
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(url_info, headers=headers, timeout=30)
+                if r.status_code != 200:
+                    logger.error(f"Error obteniendo info de media {media_id}: {r.status_code} — {r.text}")
+                    return None
+                info = r.json()
+                media_url = info.get("url")
+                mime_type = info.get("mime_type", "application/octet-stream")
+                if not media_url:
+                    return None
+                r2 = await client.get(media_url, headers=headers, timeout=60)
+                if r2.status_code != 200:
+                    logger.error(f"Error descargando media {media_id}: {r2.status_code}")
+                    return None
+                return r2.content, mime_type
+        except httpx.HTTPError as e:
+            logger.error(f"Error de red descargando media {media_id}: {e}")
+            return None
