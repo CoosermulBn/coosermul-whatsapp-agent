@@ -303,6 +303,32 @@ def obtener_mensaje_fallback() -> str:
     return config.get("fallback_message", "Disculpa, no entendí tu mensaje. ¿Podrías reformularlo?")
 
 
+def _normalizar_para_claude(mensajes: list[dict]) -> list[dict]:
+    """
+    La API de Claude exige que los mensajes alternen estrictamente
+    user/assistant, y que el primero sea "user". Nuestro historial real
+    no siempre cumple eso: mientras un socio está en modo_humano puede
+    escribir varias veces seguidas sin que nadie (ni el bot) le
+    conteste, guardando varios "user" consecutivos; al volver al bot,
+    esos mensajes seguían tal cual en el historial y la llamada a la
+    API fallaba con un error 400 ante CUALQUIER mensaje del socio,
+    hasta que esas entradas salieran de la ventana de las últimas 20
+    (causa del bug donde el bot respondía siempre con el mensaje
+    genérico de error en vez de saludar). Aquí se fusionan los mensajes
+    consecutivos del mismo rol y se recorta el inicio hasta el primer
+    "user".
+    """
+    fusionados: list[dict] = []
+    for m in mensajes:
+        if fusionados and fusionados[-1]["role"] == m["role"]:
+            fusionados[-1]["content"] = f"{fusionados[-1]['content']}\n{m['content']}"
+        else:
+            fusionados.append(dict(m))
+    while fusionados and fusionados[0]["role"] != "user":
+        fusionados.pop(0)
+    return fusionados
+
+
 # Cuando Claude ya usó la herramienta `escalar_a_humano`, lo importante
 # (notificar al equipo) ya ocurrió — no depende de que una segunda
 # llamada a la API le ponga el texto de cierre. Si esa segunda llamada
@@ -525,6 +551,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
         if m["role"] != "sistema"
     ]
     mensajes.append({"role": "user", "content": mensaje})
+    mensajes = _normalizar_para_claude(mensajes)
 
     documentos_totales: list[dict] = []
     escalar_total = False
