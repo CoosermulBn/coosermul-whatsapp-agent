@@ -111,6 +111,17 @@ PLANTILLAS_DISPONIBLES = {
             "navideñas! 🎄\n\n¿Deseas más información? [Sí] [No]"
         ),
     },
+    "descuento_no_cubierto": {
+        "etiqueta": "Descuento no cubierto (saldo pendiente)",
+        "idioma": "es",
+        "variables": ["Nombre del socio", "Monto pendiente (S/)"],
+        "vista_previa": (
+            "Hola {{1}}, su cuota del mes enviada a descuento por planilla no se "
+            "cubrió en su totalidad. Le recordamos que tiene hasta el 30 del "
+            "presente mes para cancelar la suma de S/ {{2}}. Cualquier consulta, "
+            "escríbanos por este medio. — Coosermul BN"
+        ),
+    },
 }
 
 logger = logging.getLogger("agentkit")

@@ -163,6 +163,15 @@ def _es_positiva_clara_autorizacion(texto: str) -> bool:
 # escriba el texto exacto en el mismo turno, todas las veces.
 MARCADOR_PLANTILLA_RECORDATORIO = "[plantilla enviada: Recordatorio de pago]"
 
+# "Descuento no cubierto" es otro recordatorio de pago (saldo pendiente
+# de la cuota enviada a descuento por planilla): mismas respuestas
+# posibles del socio (ya pagó, agradece, pide las cuentas de abono), así
+# que comparte todo el flujo determinístico de arriba en vez de
+# duplicarlo.
+MARCADOR_PLANTILLA_DESCUENTO_NO_CUBIERTO = (
+    "[plantilla enviada: Descuento no cubierto (saldo pendiente)]"
+)
+
 PALABRAS_YA_PAGO = (
     "ya pagu", "ya pague", "ya pagué", "ya cancel", "ya deposit",
     "ya transfer", "esta pagado", "está pagado", "esta cancelado",
@@ -204,8 +213,11 @@ def _es_primera_respuesta_a_recordatorio(historial: list[dict]) -> bool:
     socio que ya hubiera escrito antes por otro motivo, mandando la
     respuesta a Claude en vez de a este flujo determinístico.
     """
-    return bool(historial) and historial[-1]["content"].startswith(
-        MARCADOR_PLANTILLA_RECORDATORIO
+    if not historial:
+        return False
+    ultimo = historial[-1]["content"]
+    return ultimo.startswith(MARCADOR_PLANTILLA_RECORDATORIO) or ultimo.startswith(
+        MARCADOR_PLANTILLA_DESCUENTO_NO_CUBIERTO
     )
 
 
