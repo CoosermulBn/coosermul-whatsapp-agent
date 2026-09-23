@@ -90,7 +90,7 @@ PLANTILLAS_DISPONIBLES = {
             "Cualquier consulta, escríbenos por este medio. — Coosermul BN"
         ),
     },
-    "autorizacion_info_coosermul": {
+    "autorizacion_info_coosermul_v2": {
         "etiqueta": "Autorización de info (no socios BN)",
         "idioma": "es_PE",
         "variables": ["Nombre del trabajador"],
