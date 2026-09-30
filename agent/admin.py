@@ -122,6 +122,17 @@ PLANTILLAS_DISPONIBLES = {
             "escríbanos por este medio. — Coosermul BN"
         ),
     },
+    "numeros_rifa_navidad_2026": {
+        "etiqueta": "Números Rifa Navideña 2026",
+        "idioma": "es",
+        "variables": ["Nombre del socio", "Número 1", "Número 2", "Número 3", "Número 4"],
+        "vista_previa": (
+            "Hola {{1}}, le confirmamos sus números asignados para la Gran "
+            "Rifa Anual — Campaña Navideña 2026: {{2}} - {{3}} - {{4}} - "
+            "{{5}}. ¡Mucha suerte! Cualquier consulta, escríbanos por este "
+            "medio. — Coosermul BN"
+        ),
+    },
 }
 
 logger = logging.getLogger("agentkit")
@@ -662,7 +673,7 @@ def _placeholder_masivo(info: dict) -> str:
     mostraba un nombre de ejemplo, aunque la plantilla no lo pidiera)."""
     if not info["variables"]:
         return "51987654321\n51912345678"
-    ejemplo_valores = ["Juan Pérez", "150.00", "20/08/2026"]
+    ejemplo_valores = ["Juan Pérez", "150.00", "20/08/2026", "1234", "5678"]
     partes = ["51987654321"] + ejemplo_valores[: len(info["variables"])]
     return ",".join(partes)
 
