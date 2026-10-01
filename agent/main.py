@@ -252,14 +252,17 @@ MENSAJE_DERIVACION_ASESOR = (
 MENSAJE_NO_RECONOCIDO_PLANTILLA = MENSAJE_DERIVACION_ASESOR
 
 
-# La primera respuesta a la plantilla "Campaña Navidad 2026" (botones Sí/No
-# de la propia plantilla) también se maneja 100% en código, por la misma
-# razón que las anteriores.
+# La primera respuesta a los envíos masivos de "Campaña Navidad 2026" y
+# "Números Rifa Navideña 2026" también se maneja 100% en código, por la
+# misma razón que las anteriores. A diferencia de las demás plantillas,
+# aquí NO importa qué haya respondido el socio (Sí, No, una pregunta,
+# "gracias", lo que sea): cualquier respuesta dispara el mismo paquete de
+# promociones navideñas + los contactos del Asesor, porque el objetivo es
+# simplemente reenganchar a quien respondió a cualquiera de los dos
+# envíos masivos de la campaña de fin de año.
 MARCADOR_PLANTILLA_NAVIDAD = "[plantilla enviada: Campaña Navidad 2026]"
+MARCADOR_PLANTILLA_RIFA_NUMEROS = "[plantilla enviada: Números Rifa Navideña 2026]"
 
-MENSAJE_NAVIDAD_NO = (
-    "¡Gracias por responder! Cualquier consulta más adelante, aquí estaremos 🎄"
-)
 MENSAJE_NAVIDAD_SI = (
     "¡Listo! 🎄 Te comparto las 3 promociones de esta Navidad: la Bolsa "
     "Navideña, la Gran Rifa Anual y el Sorteo \"El Buen Pagador\". Cualquier "
@@ -268,29 +271,24 @@ MENSAJE_NAVIDAD_SI = (
 )
 
 
-def _es_primera_respuesta_a_navidad(historial: list[dict]) -> bool:
+def _es_primera_respuesta_a_navidad_o_rifa(historial: list[dict]) -> bool:
     """
     True si lo último que recibió el socio, antes de este mensaje, fue
-    justo esta plantilla — sin importar qué haya pasado antes en la
-    conversación. Exigir que *todo* el historial fueran marcadores de
-    esta plantilla fallaba con cualquier socio que ya hubiera escrito
-    antes por otro motivo (el caso normal, no la excepción), mandando
-    la respuesta a Claude en vez de a este flujo determinístico — causa
-    del bug donde el bot no enviaba el paquete y derivaba a un asesor.
+    justo el envío masivo de Campaña Navidad o de Números Rifa Navideña
+    — sin importar qué haya pasado antes en la conversación. Exigir que
+    *todo* el historial fueran marcadores de esta plantilla fallaba con
+    cualquier socio que ya hubiera escrito antes por otro motivo (el
+    caso normal, no la excepción), mandando la respuesta a Claude en vez
+    de a este flujo determinístico — causa del bug donde el bot no
+    enviaba el paquete y derivaba a un asesor.
     """
-    return bool(historial) and historial[-1]["content"].startswith(
-        MARCADOR_PLANTILLA_NAVIDAD
+    if not historial:
+        return False
+    ultimo = historial[-1]["content"]
+    return ultimo.startswith(MARCADOR_PLANTILLA_NAVIDAD) or ultimo.startswith(
+        MARCADOR_PLANTILLA_RIFA_NUMEROS
     )
 
-
-def _es_si_navidad(texto: str) -> bool:
-    t = (texto or "").strip().lower()
-    return bool(re.fullmatch(r"s[ií]", t)) or bool(re.search(r"\bs[ií]\b", t))
-
-
-def _es_no_navidad(texto: str) -> bool:
-    t = (texto or "").strip().lower()
-    return bool(re.search(r"\bno\b", t))
 
 PALABRAS_SOLICITUD_INFO_RECORDATORIO = (
     "cuenta", "cuentas", "pagar", "pago", "monto", "informacion",
@@ -512,38 +510,31 @@ async def webhook_handler(request: Request):
                 logger.info(f"Respuesta a {msg.telefono} (recordatorio pago): {respuesta}")
                 continue
 
-            # Primera respuesta a la plantilla de Campaña Navidad 2026
-            # (botones Sí/No de la propia plantilla): manejo 100%
-            # determinístico, sin pasar por Claude.
-            if _es_primera_respuesta_a_navidad(historial):
+            # Primera respuesta a los envíos masivos de Campaña Navidad o
+            # de Números Rifa Navideña: cualquier respuesta del socio
+            # dispara el mismo paquete + contactos, manejo 100%
+            # determinístico, sin pasar por Claude (ver nota arriba en
+            # MARCADOR_PLANTILLA_NAVIDAD).
+            if _es_primera_respuesta_a_navidad_o_rifa(historial):
                 await guardar_mensaje(msg.telefono, "user", msg.texto)
-                if _es_si_navidad(msg.texto):
-                    archivos = resolver_paquete_navidad()
-                    for nombre_archivo in archivos:
-                        ok = await proveedor.enviar_documento(
-                            msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
+                archivos = resolver_paquete_navidad()
+                for nombre_archivo in archivos:
+                    ok = await proveedor.enviar_documento(
+                        msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
+                    )
+                    if not ok:
+                        logger.error(
+                            f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
+                            "(campaña navidad / rifa, respuesta a envío masivo)"
                         )
-                        if not ok:
-                            logger.error(
-                                f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
-                                "(campaña navidad, respuesta Sí)"
-                            )
-                            await guardar_mensaje(
-                                msg.telefono, "sistema",
-                                f"⚠️ No se pudo enviar la lámina \"{nombre_archivo}\" (Campaña Navidad).",
-                            )
-                    respuesta = MENSAJE_NAVIDAD_SI
-                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
-                elif _es_no_navidad(msg.texto):
-                    respuesta = MENSAJE_NAVIDAD_NO
-                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
-                else:
-                    respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
-                    await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
-                logger.info(f"Respuesta a {msg.telefono} (campaña navidad): {respuesta}")
+                        await guardar_mensaje(
+                            msg.telefono, "sistema",
+                            f"⚠️ No se pudo enviar la lámina \"{nombre_archivo}\" (Campaña Navidad).",
+                        )
+                respuesta = MENSAJE_NAVIDAD_SI
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono} (campaña navidad / rifa): {respuesta}")
                 continue
 
             # Generar respuesta con Claude (puede incluir documentos a enviar
