@@ -133,6 +133,19 @@ PLANTILLAS_DISPONIBLES = {
             "medio. — Coosermul BN"
         ),
     },
+    "disculpa_error_rifa_numeros": {
+        "etiqueta": "Disculpa error rifa (teléfonos)",
+        "idioma": "es",
+        "variables": ["Nombre del socio"],
+        "vista_previa": (
+            "Hola {{1}}, le pedimos disculpas: nuestro equipo de Sistemas "
+            "cometió un error al asignar los números telefónicos en el "
+            "envío de sus números de la Rifa Navideña 2026. Estamos "
+            "haciendo la revisión correspondiente y le reenviaremos su "
+            "información correcta en breve. Agradecemos su comprensión. "
+            "— Coosermul BN"
+        ),
+    },
 }
 
 logger = logging.getLogger("agentkit")
