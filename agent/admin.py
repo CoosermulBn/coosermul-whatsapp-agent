@@ -136,7 +136,11 @@ PLANTILLAS_DISPONIBLES = {
     "disculpa_error_rifa_numeros": {
         "etiqueta": "Disculpa error rifa (teléfonos)",
         "idioma": "es",
-        "variables": ["Nombre del socio"],
+        # No usar el nombre real del socio: los teléfonos de la rifa
+        # quedaron mal asignados a otros socios, así que poner siempre
+        # "Estimado socio" (no se puede saber a quién pertenece cada
+        # número hasta que Sistemas confirme los datos correctos).
+        "variables": ["Saludo (poner siempre: Estimado socio)"],
         "vista_previa": (
             "Hola {{1}}, le pedimos disculpas: nuestro equipo de Sistemas "
             "cometió un error al asignar los números telefónicos en el "
