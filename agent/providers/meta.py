@@ -5,11 +5,15 @@ import os
 import json
 import mimetypes
 import logging
+import time
 import httpx
 from fastapi import Request
 from agent.providers.base import ProveedorWhatsApp, MensajeEntrante
 
 logger = logging.getLogger("agentkit")
+
+_MEDIA_CACHE: dict[str, tuple[str, float]] = {}
+_MEDIA_CACHE_SEGUNDOS = 7 * 24 * 3600
 
 
 class ProveedorMeta(ProveedorWhatsApp):
@@ -331,8 +335,21 @@ class ProveedorMeta(ProveedorWhatsApp):
                 logger.error(f"Error enviando lista via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
 
+    async def _media_id_cacheado(self, ruta: str, mime_type: str) -> str | None:
+        """Sube el archivo a Meta una sola vez y reutiliza su media_id (Meta
+        lo conserva 30 días); así un envío masivo no sube el mismo PDF
+        cientos de veces."""
+        guardado = _MEDIA_CACHE.get(ruta)
+        if guardado and time.time() - guardado[1] < _MEDIA_CACHE_SEGUNDOS:
+            return guardado[0]
+        media_id = await self._subir_media(ruta, mime_type)
+        if media_id:
+            _MEDIA_CACHE[ruta] = (media_id, time.time())
+        return media_id
+
     async def enviar_plantilla(
-        self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str]
+        self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str],
+        documento_header: dict | None = None,
     ) -> bool:
         """
         Envía un mensaje de plantilla aprobada por Meta. Es la única forma de
@@ -348,6 +365,18 @@ class ProveedorMeta(ProveedorWhatsApp):
             "Content-Type": "application/json",
         }
         componentes = []
+        if documento_header:
+            media_id = await self._media_id_cacheado(documento_header["ruta"], "application/pdf")
+            if not media_id:
+                logger.error(f"No se pudo subir el documento del encabezado: {documento_header['ruta']}")
+                return False
+            componentes.append({
+                "type": "header",
+                "parameters": [{
+                    "type": "document",
+                    "document": {"id": media_id, "filename": documento_header["nombre"]},
+                }],
+            })
         if parametros:
             componentes.append({
                 "type": "body",

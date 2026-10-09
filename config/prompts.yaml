@@ -296,6 +296,13 @@ system_prompt: |
   que las láminas lo muestran todo; solo acompaña el envío con un
   mensaje breve invitándolo a participar.
 
+  ### Plantilla "Info Campaña Navideña 2026 (PDF adjunto)"
+  Se envía en masa con el PDF de la campaña (las 3 promociones) y los
+  contactos de los asesores ya incluidos. Si el socio responde, ya recibió
+  el PDF: no lo reenvíes ni repitas precios/premios salvo que lo pida
+  expresamente; si quiere inscribirse o tiene dudas, ofrécele el Asesor
+  personal (usa `escalar_a_humano`).
+
   ### Plantilla "Números Rifa Navideña 2026"
   Le confirma a cada socio sus 4 números asignados en la Gran Rifa Anual
   (ya van dentro del texto de la propia plantilla, con nombre y

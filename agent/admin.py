@@ -133,6 +133,25 @@ PLANTILLAS_DISPONIBLES = {
             "medio. — Coosermul BN"
         ),
     },
+    "info_campana_navidad_pdf_2026": {
+        "etiqueta": "Info Campaña Navideña 2026 (PDF adjunto)",
+        "idioma": "es",
+        "variables": [],
+        # Entrega el PDF dentro de la plantilla, por lo que llega aunque el
+        # socio nunca haya escrito (fuera de la ventana de 24h WhatsApp solo
+        # deja entregar archivos dentro de una plantilla).
+        "documento_header": {
+            "ruta": os.path.join("data", "plantillas_media", "campana_navidena_2026.pdf"),
+            "nombre": "Campaña Navideña 2026.pdf",
+        },
+        "vista_previa": (
+            "[PDF adjunto: Campaña Navideña 2026]\n\nCoosermul BN le comparte la "
+            "información de la Campaña Navideña 2026: Bolsa Navideña, Gran Rifa "
+            "Anual y Sorteo Gratuito \"El Buen Pagador\". Revise el documento "
+            "adjunto. Para inscribirse o consultar, escriba directamente a nuestros "
+            "asesores: https://wa.me/51996899924 o https://wa.me/51996899927"
+        ),
+    },
     "disculpa_error_rifa_numeros": {
         "etiqueta": "Disculpa error rifa (teléfonos)",
         "idioma": "es",
@@ -662,7 +681,8 @@ async def nueva_conversacion_enviar(
         return RedirectResponse(url="/admin/nueva?error=datos_invalidos", status_code=303)
 
     proveedor = obtener_proveedor()
-    enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables)
+    enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables,
+        documento_header=info.get("documento_header"))
 
     if not enviado:
         logger.error(f"No se pudo enviar la plantilla {plantilla} a {telefono}")
@@ -781,7 +801,8 @@ async def nueva_masiva_enviar(
             resultados.append({"telefono": linea, "ok": False, "detalle": "número inválido"})
             continue
 
-        enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables)
+        enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables,
+        documento_header=info.get("documento_header"))
         if enviado:
             registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
             await guardar_mensaje(telefono, "humano", registro)
