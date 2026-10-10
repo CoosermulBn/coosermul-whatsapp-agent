@@ -126,6 +126,7 @@ PLANTILLAS_DISPONIBLES = {
         "etiqueta": "Números Rifa Navideña 2026",
         "idioma": "es",
         "variables": ["Nombre del socio", "Número 1", "Número 2", "Número 3", "Número 4"],
+        "ejemplo": ["Juan Pérez", "5648", "2535", "5678", "1453"],
         "vista_previa": (
             "Hola {{1}}, le confirmamos sus números asignados para la Gran "
             "Rifa Anual — Campaña Navideña 2026: {{2}} - {{3}} - {{4}} - "
@@ -150,6 +151,22 @@ PLANTILLAS_DISPONIBLES = {
             "Anual y Sorteo Gratuito \"El Buen Pagador\". Revise el documento "
             "adjunto. Para inscribirse o consultar, escriba directamente a nuestros "
             "asesores: https://wa.me/51996899924 o https://wa.me/51996899927"
+        ),
+    },
+    "aviso_morosidad_cuota": {
+        "etiqueta": "Aviso de morosidad (cuota no cubierta)",
+        "idioma": "es",
+        "variables": ["Nombre del socio", "Mes de la cuota (ej. setiembre)", "Monto pendiente (S/)"],
+        "ejemplo": ["Juan Pérez", "setiembre", "85.00"],
+        "vista_previa": (
+            "Hola {{1}}, su cuota del mes de {{2}} enviada a descuento por planilla "
+            "no se cubrió en su totalidad. Le indicamos que tenía hasta el 30 del "
+            "presente mes para cancelar la suma de S/ {{3}}; sin embargo, no cumplió "
+            "con pagar. Le recordamos que este hecho lo perjudica económicamente por "
+            "los intereses por morosidad, costo de notificaciones, cartas notariales "
+            "y posible inicio de un proceso judicial de cobranza. Para una mejor "
+            "información escriba directamente a nuestros asesores: "
+            "https://wa.me/51996899924 o https://wa.me/51996899927"
         ),
     },
     "disculpa_error_rifa_numeros": {
@@ -710,7 +727,7 @@ def _placeholder_masivo(info: dict) -> str:
     mostraba un nombre de ejemplo, aunque la plantilla no lo pidiera)."""
     if not info["variables"]:
         return "51987654321\n51912345678"
-    ejemplo_valores = ["Juan Pérez", "150.00", "20/08/2026", "1234", "5678"]
+    ejemplo_valores = info.get("ejemplo") or ["Juan Pérez", "150.00", "20/08/2026", "1234", "5678"]
     partes = ["51987654321"] + ejemplo_valores[: len(info["variables"])]
     return ",".join(partes)
 
