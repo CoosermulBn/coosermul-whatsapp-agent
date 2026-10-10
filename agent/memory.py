@@ -193,6 +193,55 @@ async def obtener_mensajes_sistema(limite: int = 500) -> list[dict]:
         ]
 
 
+async def obtener_respuestas_por_plantilla(marcador: str) -> list[dict]:
+    """
+    Para cada número al que se envió la plantilla cuyo registro empieza con
+    `marcador` (ej. "[plantilla enviada: Campaña Navidad 2026]"), indica si
+    el socio escribió algo DESPUÉS del primer envío, y si hay un aviso de
+    entrega fallida registrado después. Sirve para armar listas de "ya
+    respondieron" / "no respondieron" y no reenviar a quien ya contestó.
+    """
+    async with async_session() as session:
+        envios = (await session.execute(
+            select(Mensaje.telefono, func.min(Mensaje.timestamp))
+            .where(Mensaje.role == "humano", Mensaje.content.startswith(marcador, autoescape=True))
+            .group_by(Mensaje.telefono)
+        )).all()
+        primer_envio = {tel: ts for tel, ts in envios}
+        if not primer_envio:
+            return []
+
+        telefonos = list(primer_envio)
+        respuestas, fallos = {}, set()
+        # por tandas, para no armar un IN gigante en la consulta
+        for i in range(0, len(telefonos), 500):
+            lote = telefonos[i:i + 500]
+            filas = (await session.execute(
+                select(Mensaje.telefono, Mensaje.role, Mensaje.content, Mensaje.timestamp)
+                .where(Mensaje.telefono.in_(lote), Mensaje.role.in_(["user", "sistema"]))
+                .order_by(Mensaje.timestamp.asc())
+            )).all()
+            for tel, role, content, ts in filas:
+                if ts < primer_envio[tel]:
+                    continue
+                if role == "user" and tel not in respuestas:
+                    respuestas[tel] = (ts, content)
+                elif role == "sistema":
+                    fallos.add(tel)
+
+    return [
+        {
+            "telefono": tel,
+            "primer_envio": primer_envio[tel],
+            "respondio": tel in respuestas,
+            "primera_respuesta": respuestas[tel][0] if tel in respuestas else None,
+            "texto_respuesta": respuestas[tel][1] if tel in respuestas else "",
+            "fallo_entrega": tel in fallos,
+        }
+        for tel in sorted(primer_envio)
+    ]
+
+
 async def activar_modo_humano(telefono: str):
     """Marca la conversación para que el bot deje de responder automáticamente."""
     async with async_session() as session:

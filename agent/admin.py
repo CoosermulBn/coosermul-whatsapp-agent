@@ -16,6 +16,8 @@ import asyncio
 import secrets
 import logging
 import tempfile
+import csv
+import io
 from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
@@ -32,6 +34,7 @@ from agent.memory import (
     obtener_adjunto,
     obtener_eventos_atencion,
     obtener_mensajes_sistema,
+    obtener_respuestas_por_plantilla,
 )
 from agent.providers import obtener_proveedor
 from agent.tools import (
@@ -490,6 +493,7 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
           <a class="btn-nueva" href="/admin/nueva">+ Nueva conversación</a>
           <a class="btn-nueva" href="/admin/nueva/masivo">+ Envío masivo</a>
           <a class="btn-nueva" style="background:#dc2626;" href="/admin/fallos">⚠️ Entregas fallidas</a>
+          <a class="btn-nueva" style="background:#0f766e;" href="/admin/reporte/respuestas">📊 Respuestas por plantilla</a>
         </div>
       </div>
       <button id="btn-sonido" class="btn-sonido">🔕 Activar notificaciones (sonido)</button>
@@ -554,6 +558,116 @@ async def api_buscar_socio(q: str = "", usuario: str = Depends(_verificar_creden
     """Busca socios del padrón por nombre/DNI (con celular registrado), para /admin/nueva."""
     resultados = buscar_socios(q)
     return JSONResponse({"socios": resultados})
+
+
+def _estado_respuesta(r: dict) -> str:
+    if r["respondio"]:
+        return "Respondió"
+    return "No respondió (con aviso de fallo de entrega)" if r["fallo_entrega"] else "No respondió"
+
+
+@router.get("/admin/reporte/respuestas", response_class=HTMLResponse)
+async def reporte_respuestas(
+    plantilla: str = "",
+    formato: str = "html",
+    grupo: str = "todos",
+    usuario: str = Depends(_verificar_credenciales),
+):
+    """
+    Quién respondió y quién no a una plantilla enviada (individual o
+    masiva). Permite descargar el listado en CSV (Excel) o, para armar un
+    nuevo envío masivo, solo los teléfonos de quienes no respondieron.
+    """
+    opciones = "".join(
+        f'<option value="{k}"{" selected" if k == plantilla else ""}>{html.escape(v["etiqueta"])}</option>'
+        for k, v in PLANTILLAS_DISPONIBLES.items()
+    )
+    info = PLANTILLAS_DISPONIBLES.get(plantilla)
+    resumen = ""
+    if info:
+        marcador = f"[plantilla enviada: {info['etiqueta']}]"
+        filas = await obtener_respuestas_por_plantilla(marcador)
+        respondieron = [r for r in filas if r["respondio"]]
+        no_resp = [r for r in filas if not r["respondio"]]
+        fallo = [r for r in no_resp if r["fallo_entrega"]]
+        if grupo == "respondieron":
+            sel = respondieron
+        elif grupo == "no_respondieron":
+            sel = no_resp
+        elif grupo == "fallo":
+            sel = fallo
+        else:
+            sel = filas
+
+        if formato == "csv":
+            buf = io.StringIO()
+            w = csv.writer(buf)
+            w.writerow(["Teléfono", "Nombre (padrón)", "Estado", "Primer envío (hora Lima)",
+                        "Primera respuesta (hora Lima)", "Texto de la primera respuesta"])
+            for r in sel:
+                socio = identificar_socio_por_telefono(r["telefono"])
+                w.writerow([r["telefono"], socio["nombre"] if socio else "", _estado_respuesta(r),
+                            _hora_lima(r["primer_envio"]),
+                            _hora_lima(r["primera_respuesta"]) if r["primera_respuesta"] else "",
+                            r["texto_respuesta"]])
+            return Response(
+                content="\ufeff" + buf.getvalue(),
+                media_type="text/csv; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="respuestas_{plantilla}_{grupo}.csv"'},
+            )
+        if formato == "txt":
+            return Response(
+                content="".join(r["telefono"] + "\n" for r in sel),
+                media_type="text/plain; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="telefonos_{plantilla}_{grupo}.txt"'},
+            )
+
+        base = f"/admin/reporte/respuestas?plantilla={html.escape(plantilla)}"
+        resumen = f"""
+        <div class="conv" style="cursor:default;">
+          <div class="tel">{html.escape(info["etiqueta"])}</div>
+          <div class="preview">
+            Enviada a <b>{len(filas)}</b> números · Respondieron <b>{len(respondieron)}</b> ·
+            No respondieron <b>{len(no_resp)}</b> (de ellos, {len(fallo)} con aviso de fallo de entrega)
+          </div>
+        </div>
+        <div class="conv" style="cursor:default;">
+          <div class="tel">Descargar</div>
+          <div class="preview" style="line-height:2.2;">
+            Excel (CSV):
+            <a href="{base}&formato=csv&grupo=todos">todos</a> ·
+            <a href="{base}&formato=csv&grupo=respondieron">respondieron</a> ·
+            <a href="{base}&formato=csv&grupo=no_respondieron">no respondieron</a> ·
+            <a href="{base}&formato=csv&grupo=fallo">con fallo de entrega</a><br>
+            Solo teléfonos (para pegar en Envío masivo, plantillas sin variables):
+            <a href="{base}&formato=txt&grupo=no_respondieron">no respondieron</a> ·
+            <a href="{base}&formato=txt&grupo=respondieron">respondieron</a>
+          </div>
+        </div>
+        """
+        if not filas:
+            resumen = '<div class="empty">Esa plantilla no se ha enviado a nadie todavía.</div>'
+
+    return f"""
+    <html>
+    <head><title>Respuestas por plantilla — Coosermul BN</title>{ESTILO}</head>
+    <body>
+      <a class="back" href="/admin">&larr; Volver a conversaciones</a>
+      <div class="toolbar"><div>
+        <h1>Respuestas por plantilla</h1>
+        <div class="sub">Quién respondió (escribió algo después del primer envío) y quién no.</div>
+      </div></div>
+      <form method="get" action="/admin/reporte/respuestas" class="form-nueva">
+        <label>Plantilla
+          <select name="plantilla" onchange="this.form.submit()">
+            <option value="">-- Selecciona --</option>{opciones}
+          </select>
+        </label>
+      </form>
+      {resumen}
+    </body>
+    </html>
+    """
 
 
 @router.get("/admin/nueva", response_class=HTMLResponse)
