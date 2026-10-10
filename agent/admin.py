@@ -153,7 +153,7 @@ PLANTILLAS_DISPONIBLES = {
             "asesores: https://wa.me/51996899924 o https://wa.me/51996899927"
         ),
     },
-    "aviso_morosidad_cuota": {
+    "aviso_morosidad_cuota_v2": {
         "etiqueta": "Aviso de morosidad (cuota no cubierta)",
         "idioma": "es",
         "variables": ["Nombre del socio", "Mes de la cuota (ej. setiembre)", "Monto pendiente (S/)"],
@@ -163,8 +163,7 @@ PLANTILLAS_DISPONIBLES = {
             "no se cubrió en su totalidad. Le indicamos que tenía hasta el 30 del "
             "presente mes para cancelar la suma de S/ {{3}}; sin embargo, no cumplió "
             "con pagar. Le recordamos que este hecho lo perjudica económicamente por "
-            "los intereses por morosidad, costo de notificaciones, cartas notariales "
-            "y posible inicio de un proceso judicial de cobranza. Para una mejor "
+            "los intereses por morosidad y el costo de notificaciones. Para una mejor "
             "información escriba directamente a nuestros asesores: "
             "https://wa.me/51996899924 o https://wa.me/51996899927"
         ),

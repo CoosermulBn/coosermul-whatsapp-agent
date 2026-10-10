@@ -271,6 +271,22 @@ MENSAJE_NAVIDAD_SI = (
 )
 
 
+# Aviso de morosidad (cuota no cubierta): cualquier respuesta del socio se
+# deriva a los asesores, en código y sin pasar por Claude -- es un tema
+# delicado (montos, intereses, pagos ya hechos) que solo ellos resuelven.
+MARCADOR_PLANTILLA_MOROSIDAD = "[plantilla enviada: Aviso de morosidad (cuota no cubierta)]"
+MENSAJE_MOROSIDAD_DERIVACION = (
+    "Para atender su caso, comuníquese directamente con nuestros asesores: "
+    "https://wa.me/51996899924 o https://wa.me/51996899927"
+)
+
+
+def _es_primera_respuesta_a_morosidad(historial: list[dict]) -> bool:
+    return bool(historial) and historial[-1]["content"].startswith(
+        MARCADOR_PLANTILLA_MOROSIDAD
+    )
+
+
 def _es_primera_respuesta_a_navidad_o_rifa(historial: list[dict]) -> bool:
     """
     True si lo último que recibió el socio, antes de este mensaje, fue
@@ -535,6 +551,15 @@ async def webhook_handler(request: Request):
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (campaña navidad / rifa): {respuesta}")
+                continue
+
+            # Respuesta a un aviso de morosidad: siempre a los asesores.
+            if _es_primera_respuesta_a_morosidad(historial):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                respuesta = MENSAJE_MOROSIDAD_DERIVACION
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono} (aviso de morosidad): {respuesta}")
                 continue
 
             # Generar respuesta con Claude (puede incluir documentos a enviar

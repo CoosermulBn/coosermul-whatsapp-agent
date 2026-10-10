@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Crea en Meta la plantilla de utilidad 'aviso_morosidad_cuota': notificacion
 de fin de mes a socios cuya cuota enviada a descuento por planilla no se
-cubrio y vencio el plazo (intereses, notificaciones, cartas notariales,
-posible cobranza judicial)."""
+cubrio y vencio el plazo (intereses por morosidad y costo de
+notificaciones)."""
 import os
 import sys
 
@@ -19,7 +19,7 @@ if not token or not waba_id:
     sys.exit(1)
 
 PLANTILLA = {
-    "name": "aviso_morosidad_cuota",
+    "name": "aviso_morosidad_cuota_v2",
     "language": "es",
     "category": "UTILITY",
     "components": [
@@ -30,8 +30,7 @@ PLANTILLA = {
                 "no se cubrió en su totalidad. Le indicamos que tenía hasta el 30 del "
                 "presente mes para cancelar la suma de S/ {{3}}; sin embargo, no cumplió "
                 "con pagar. Le recordamos que este hecho lo perjudica económicamente por "
-                "los intereses por morosidad, costo de notificaciones, cartas notariales "
-                "y posible inicio de un proceso judicial de cobranza. Para una mejor "
+                "los intereses por morosidad y el costo de notificaciones. Para una mejor "
                 "información escriba directamente a nuestros asesores: "
                 "https://wa.me/51996899924 o https://wa.me/51996899927"
             ),
