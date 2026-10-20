@@ -34,7 +34,11 @@ class ProveedorFalso:
         self.enviados.append(("texto", texto))
         return True
 
+    fallar_documentos = False
+
     async def enviar_documento(self, tel, ruta, nombre, caption=""):
+        if self.fallar_documentos:
+            return False
         self.enviados.append(("doc", nombre))
         return True
 
@@ -122,6 +126,25 @@ def probar():
     guardar("51900000008", "humano", "[plantilla enviada: Recordatorio de pago] Ana | 50 | 30/10")
     r = escribe("51900000008", "mañana estaré abonando")
     check("7 recordatorio + intencion: cuentas", docs(r) == [CUENTAS] and textos(r) == [main.MENSAJE_CUENTAS_ABONO_RECORDATORIO])
+
+    # 8) caso real del 20/10: respuesta a "Descuento no cubierto" pidiendo la cuenta
+    #    (con errata). Debe salir el PDF y quedar registrado en el chat.
+    guardar("51900000009", "humano",
+            "[plantilla enviada: Descuento no cubierto (saldo pendiente)] Lazo Salcedo Jeancarlo Manuel | 8201.88")
+    r = escribe("51900000009", "Pasmae la cuenta para abonar por favor")
+    check("8 envia el pdf de cuentas", docs(r) == [CUENTAS])
+    historial = asyncio.run(memory.obtener_historial("51900000009"))
+    check("8 queda registro visible del envio automatico",
+          any(m["role"] == "assistant" and "enviadas automáticamente" in m["content"] and CUENTAS in m["content"]
+              for m in historial))
+
+    # 9) si Meta/la red rechaza el PDF: queda alerta visible y NO se registra como enviado
+    prov.fallar_documentos = True
+    escribe("51900000010", "pasame el numero de cuenta")
+    prov.fallar_documentos = False
+    historial = asyncio.run(memory.obtener_historial("51900000010"))
+    check("9 alerta de fallo visible", any(m["role"] == "sistema" and "No se pudo enviar" in m["content"] for m in historial))
+    check("9 no dice enviado", not any("enviadas automáticamente" in m["content"] for m in historial))
 
     return fallos
 

@@ -188,8 +188,10 @@ MENSAJE_YA_PAGO_RECORDATORIO = (
 MENSAJE_CUENTAS_ABONO_RECORDATORIO = (
     "Sabemos que es descuento por planilla, solo para que tenga en "
     "cuenta y sepa cuánto es lo que le tienen que descontar. En caso no "
-    "cubra su descuento, puede abonar a nuestras cuentas. Mayor "
-    "información al N° 996899924 ó N° 996899927."
+    "cubra su descuento, puede abonar a nuestras cuentas, que le envío "
+    "adjuntas 📎. Una vez realizado el depósito, puede enviarnos la foto "
+    "del voucher por este medio. Mayor información al N° 996899924 ó "
+    "N° 996899927."
 )
 
 MENSAJE_AGRADECIMIENTO_RECORDATORIO = "Muy agradecido por su atención."
@@ -299,17 +301,31 @@ MENSAJE_CUENTAS_ABONO_VOUCHER = (
 )
 
 
-async def _enviar_cuentas_de_abono(telefono: str, contexto: str) -> None:
-    for nombre_archivo in resolver_cuentas_abono():
-        ok = await proveedor.enviar_documento(
-            telefono, ruta_completa(nombre_archivo), nombre_archivo
-        )
-        if not ok:
-            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (cuentas de abono, {contexto})")
+async def _enviar_documentos(telefono: str, archivos: list[str], contexto: str, etiqueta: str) -> None:
+    """
+    Envía archivos de /knowledge de forma automática. Deja alerta "sistema"
+    por cada fallo y, si salió alguno, un registro visible en el chat
+    ("[etiqueta enviadas automáticamente] archivo.pdf"): antes los envíos
+    automáticos no dejaban ninguna huella en el panel, y no había forma de
+    saber si el bot había mandado el archivo o no.
+    """
+    enviados = []
+    for nombre_archivo in archivos:
+        ok = await proveedor.enviar_documento(telefono, ruta_completa(nombre_archivo), nombre_archivo)
+        if ok:
+            enviados.append(nombre_archivo)
+        else:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} ({contexto})")
             await guardar_mensaje(
                 telefono, "sistema",
-                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" (cuentas de abono).",
+                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" ({etiqueta}).",
             )
+    if enviados:
+        await guardar_mensaje(telefono, "assistant", f"[{etiqueta} enviadas automáticamente] " + ", ".join(enviados))
+
+
+async def _enviar_cuentas_de_abono(telefono: str, contexto: str) -> None:
+    await _enviar_documentos(telefono, resolver_cuentas_abono(), contexto, "cuentas de abono")
 
 
 def _cuentas_ya_enviadas(historial: list[dict]) -> bool:
@@ -508,20 +524,10 @@ async def webhook_handler(request: Request):
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 else:
-                    archivos = resolver_info_institucional()
-                    for nombre_archivo in archivos:
-                        ok = await proveedor.enviar_documento(
-                            msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
-                        )
-                        if not ok:
-                            logger.error(
-                                f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
-                                "(paquete de información, respuesta a autorización)"
-                            )
-                            await guardar_mensaje(
-                                msg.telefono, "sistema",
-                                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" (paquete de información).",
-                            )
+                    await _enviar_documentos(
+                        msg.telefono, resolver_info_institucional(),
+                        "respuesta a autorización", "paquete de información",
+                    )
                     respuesta = MENSAJE_INFO_AUTORIZACION_ENVIADA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
@@ -547,20 +553,7 @@ async def webhook_handler(request: Request):
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 else:
-                    archivos = resolver_cuentas_abono()
-                    for nombre_archivo in archivos:
-                        ok = await proveedor.enviar_documento(
-                            msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
-                        )
-                        if not ok:
-                            logger.error(
-                                f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
-                                "(cuentas de abono, respuesta a recordatorio de pago)"
-                            )
-                            await guardar_mensaje(
-                                msg.telefono, "sistema",
-                                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" (cuentas de abono).",
-                            )
+                    await _enviar_cuentas_de_abono(msg.telefono, "respuesta a recordatorio de pago")
                     respuesta = MENSAJE_CUENTAS_ABONO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
@@ -574,20 +567,10 @@ async def webhook_handler(request: Request):
             # MARCADOR_PLANTILLA_NAVIDAD).
             if _es_primera_respuesta_a_navidad_o_rifa(historial):
                 await guardar_mensaje(msg.telefono, "user", msg.texto)
-                archivos = resolver_paquete_navidad()
-                for nombre_archivo in archivos:
-                    ok = await proveedor.enviar_documento(
-                        msg.telefono, ruta_completa(nombre_archivo), nombre_archivo
-                    )
-                    if not ok:
-                        logger.error(
-                            f"No se pudo enviar {nombre_archivo} a {msg.telefono} "
-                            "(campaña navidad / rifa, respuesta a envío masivo)"
-                        )
-                        await guardar_mensaje(
-                            msg.telefono, "sistema",
-                            f"⚠️ No se pudo enviar la lámina \"{nombre_archivo}\" (Campaña Navidad).",
-                        )
+                await _enviar_documentos(
+                    msg.telefono, resolver_paquete_navidad(),
+                    "respuesta a campaña navidad / rifa", "láminas de la Campaña Navideña",
+                )
                 pide_pagar = expresa_intencion_de_pago(msg.texto)
                 if pide_pagar:
                     await _enviar_cuentas_de_abono(msg.telefono, "respuesta a campaña navidad / rifa")
@@ -638,16 +621,24 @@ async def webhook_handler(request: Request):
             await guardar_mensaje(msg.telefono, "assistant", respuesta)
 
             # Enviar los documentos primero (si los hay), luego el texto
+            enviados_ok = []
             for doc in documentos:
                 enviado = await proveedor.enviar_documento(
                     msg.telefono, doc["ruta"], doc["nombre_archivo"]
                 )
-                if not enviado:
+                if enviado:
+                    enviados_ok.append(doc["nombre_archivo"])
+                else:
                     logger.error(f"No se pudo enviar el documento {doc['nombre_archivo']} a {msg.telefono}")
                     await guardar_mensaje(
                         msg.telefono, "sistema",
                         f"⚠️ No se pudo enviar el documento \"{doc['nombre_archivo']}\".",
                     )
+            if enviados_ok:
+                await guardar_mensaje(
+                    msg.telefono, "assistant",
+                    "[documentos enviados automáticamente] " + ", ".join(enviados_ok),
+                )
 
             # Enviar respuesta por WhatsApp via el proveedor
             await proveedor.enviar_mensaje(msg.telefono, respuesta)
