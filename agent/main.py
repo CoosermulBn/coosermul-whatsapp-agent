@@ -38,6 +38,7 @@ from agent.memory import (
 )
 from agent.providers import obtener_proveedor
 from agent.admin import router as admin_router
+from agent.intencion_pago import expresa_intencion_de_pago
 from agent.tools import (
     resolver_info_institucional,
     resolver_cuentas_abono,
@@ -281,6 +282,46 @@ MENSAJE_MOROSIDAD_DERIVACION = (
 )
 
 
+# Cuando un socio pide el número de cuenta, pregunta dónde o cómo pagar, o
+# dice que quiere pagar (ver agent/intencion_pago.py), el bot le envía
+# automáticamente el PDF de las cuentas de abono, en cualquier conversación.
+MENSAJE_CUENTAS_ABONO_AUTOMATICO = (
+    "Le envío las cuentas de abono de Coosermul BN 📎. Una vez realizado el "
+    "depósito, puede enviarnos la foto del voucher por este medio. Cualquier "
+    "consulta, comuníquese con nuestros asesores: "
+    "https://wa.me/51996899924 o https://wa.me/51996899927"
+)
+# Versión sin links, para cuando las cuentas acompañan otro envío que ya
+# trae los contactos de los asesores.
+MENSAJE_CUENTAS_ABONO_VOUCHER = (
+    "Adjunto también las cuentas de abono 📎. Una vez realizado el depósito, "
+    "puede enviarnos la foto del voucher por este medio."
+)
+
+
+async def _enviar_cuentas_de_abono(telefono: str, contexto: str) -> None:
+    for nombre_archivo in resolver_cuentas_abono():
+        ok = await proveedor.enviar_documento(
+            telefono, ruta_completa(nombre_archivo), nombre_archivo
+        )
+        if not ok:
+            logger.error(f"No se pudo enviar {nombre_archivo} a {telefono} (cuentas de abono, {contexto})")
+            await guardar_mensaje(
+                telefono, "sistema",
+                f"⚠️ No se pudo enviar el documento \"{nombre_archivo}\" (cuentas de abono).",
+            )
+
+
+def _cuentas_ya_enviadas(historial: list[dict]) -> bool:
+    """True si lo último que el socio recibió fue justo las cuentas de abono
+    (evita reenviar el PDF si insiste con otro mensaje de pago enseguida)."""
+    return bool(historial) and historial[-1]["content"] in (
+        MENSAJE_CUENTAS_ABONO_AUTOMATICO,
+        MENSAJE_CUENTAS_ABONO_VOUCHER,
+        MENSAJE_CUENTAS_ABONO_RECORDATORIO,
+    )
+
+
 def _es_primera_respuesta_a_morosidad(historial: list[dict]) -> bool:
     return bool(historial) and historial[-1]["content"].startswith(
         MARCADOR_PLANTILLA_MOROSIDAD
@@ -501,7 +542,7 @@ async def webhook_handler(request: Request):
                     respuesta = MENSAJE_AGRADECIMIENTO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
-                elif not _es_solicitud_info_clara_recordatorio(msg.texto):
+                elif not (_es_solicitud_info_clara_recordatorio(msg.texto) or expresa_intencion_de_pago(msg.texto)):
                     respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
                     await proveedor.enviar_mensaje(msg.telefono, respuesta)
@@ -547,19 +588,43 @@ async def webhook_handler(request: Request):
                             msg.telefono, "sistema",
                             f"⚠️ No se pudo enviar la lámina \"{nombre_archivo}\" (Campaña Navidad).",
                         )
+                pide_pagar = expresa_intencion_de_pago(msg.texto)
+                if pide_pagar:
+                    await _enviar_cuentas_de_abono(msg.telefono, "respuesta a campaña navidad / rifa")
                 respuesta = MENSAJE_NAVIDAD_SI
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                if pide_pagar:
+                    await guardar_mensaje(msg.telefono, "assistant", MENSAJE_CUENTAS_ABONO_VOUCHER)
+                    await proveedor.enviar_mensaje(msg.telefono, MENSAJE_CUENTAS_ABONO_VOUCHER)
                 logger.info(f"Respuesta a {msg.telefono} (campaña navidad / rifa): {respuesta}")
                 continue
 
-            # Respuesta a un aviso de morosidad: siempre a los asesores.
+            # Respuesta a un aviso de morosidad: siempre a los asesores; si
+            # además dice que quiere pagar o pide la cuenta, se le envían
+            # también las cuentas de abono (ese mensaje ya trae los links).
             if _es_primera_respuesta_a_morosidad(historial):
                 await guardar_mensaje(msg.telefono, "user", msg.texto)
-                respuesta = MENSAJE_MOROSIDAD_DERIVACION
+                if expresa_intencion_de_pago(msg.texto):
+                    await _enviar_cuentas_de_abono(msg.telefono, "respuesta a aviso de morosidad")
+                    respuesta = MENSAJE_CUENTAS_ABONO_AUTOMATICO
+                else:
+                    respuesta = MENSAJE_MOROSIDAD_DERIVACION
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (aviso de morosidad): {respuesta}")
+                continue
+
+            # Intención de pago en cualquier otra conversación (pide número
+            # de cuenta, dónde/cómo pagar, dice que quiere pagar...): se
+            # envían las cuentas de abono automáticamente, sin pasar por Claude.
+            if expresa_intencion_de_pago(msg.texto) and not _cuentas_ya_enviadas(historial):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                await _enviar_cuentas_de_abono(msg.telefono, "intención de pago")
+                respuesta = MENSAJE_CUENTAS_ABONO_AUTOMATICO
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono} (intención de pago): cuentas de abono enviadas")
                 continue
 
             # Generar respuesta con Claude (puede incluir documentos a enviar

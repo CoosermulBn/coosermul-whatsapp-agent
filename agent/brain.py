@@ -129,10 +129,11 @@ HERRAMIENTAS = [
         "name": "enviar_cuentas_abono",
         "description": (
             "Envía por WhatsApp el PDF con los datos de las cuentas de "
-            "abono para pagos (Banco de la Nación y BCP). Úsala cuando el "
-            "socio, tras recibir la plantilla de recordatorio de pago, "
-            "responda pidiendo más información sobre su deuda o cómo "
-            "pagarla."
+            "abono para pagos (Banco de la Nación y BCP). El sistema ya lo "
+            "envía solo cuando el socio pide la cuenta o quiere pagar; úsala "
+            "para REENVIARLO si dice que no le llegó o lo pide de nuevo, o "
+            "cuando pregunte por su deuda o cómo pagarla tras un recordatorio "
+            "de pago."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },

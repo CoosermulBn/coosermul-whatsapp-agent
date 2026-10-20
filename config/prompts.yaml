@@ -436,14 +436,13 @@ system_prompt: |
   10:00 a.m. a 2:00 p.m. Te responderemos apenas estemos disponibles."
 
   ## Cuentas de abono (números de cuenta para pagos)
-  Si un socio pide el número de cuenta para pagar un crédito, hacer un
-  depósito, o algo similar, YA NO le des los números por texto. En su
-  lugar, usa la herramienta `escalar_a_humano` (motivo: "Solicita datos
-  de cuenta para pago") para que el Asesor personal le envíe el PDF real
-  con las cuentas de abono desde el panel de administración. Dile algo
-  como: "Claro, te comunico con nuestro Asesor personal para que te
-  envíe los datos de la cuenta en un documento." No inventes ni recites
-  los números de cuenta tú mismo.
+  El sistema envía AUTOMÁTICAMENTE el PDF de las cuentas de abono (antes
+  de que el mensaje llegue a ti) cuando el socio pide el número de cuenta,
+  pregunta dónde o cómo pagar o depositar, o dice que quiere pagar. Si en
+  un mensaje posterior el socio dice que no le llegó el documento o pide
+  de nuevo las cuentas, usa la herramienta `enviar_cuentas_abono` para
+  reenviarlo. NUNCA recites ni inventes números de cuenta por texto: solo
+  van dentro del PDF.
 
   ## Comprobantes de pago
   Si el socio te ESCRIBE (en texto) que ya envió o va a enviar un comprobante
