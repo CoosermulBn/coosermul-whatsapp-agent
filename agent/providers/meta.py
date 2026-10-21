@@ -339,17 +339,22 @@ class ProveedorMeta(ProveedorWhatsApp):
         """Sube el archivo a Meta una sola vez y reutiliza su media_id (Meta
         lo conserva 30 días); así un envío masivo no sube el mismo PDF
         cientos de veces."""
-        guardado = _MEDIA_CACHE.get(ruta)
+        try:
+            clave = f"{ruta}|{os.path.getmtime(ruta)}"  # si el archivo cambia, se vuelve a subir
+        except OSError:
+            clave = ruta
+        guardado = _MEDIA_CACHE.get(clave)
         if guardado and time.time() - guardado[1] < _MEDIA_CACHE_SEGUNDOS:
             return guardado[0]
         media_id = await self._subir_media(ruta, mime_type)
         if media_id:
-            _MEDIA_CACHE[ruta] = (media_id, time.time())
+            _MEDIA_CACHE[clave] = (media_id, time.time())
         return media_id
 
     async def enviar_plantilla(
         self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str],
         documento_header: dict | None = None,
+        imagen_header: dict | None = None,
     ) -> bool:
         """
         Envía un mensaje de plantilla aprobada por Meta. Es la única forma de
@@ -376,6 +381,16 @@ class ProveedorMeta(ProveedorWhatsApp):
                     "type": "document",
                     "document": {"id": media_id, "filename": documento_header["nombre"]},
                 }],
+            })
+        if imagen_header:
+            mime = mimetypes.guess_type(imagen_header["ruta"])[0] or "image/jpeg"
+            media_id = await self._media_id_cacheado(imagen_header["ruta"], mime)
+            if not media_id:
+                logger.error(f"No se pudo subir la imagen del encabezado: {imagen_header['ruta']}")
+                return False
+            componentes.append({
+                "type": "header",
+                "parameters": [{"type": "image", "image": {"id": media_id}}],
             })
         if parametros:
             componentes.append({

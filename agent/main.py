@@ -10,6 +10,7 @@ import sys
 import os
 import re
 import logging
+import unicodedata
 
 # Algunos contenedores Linux minimalistas arrancan con una configuración
 # regional que no es UTF-8 (por ejemplo, si el locale "C.UTF-8" no está
@@ -338,6 +339,35 @@ def _cuentas_ya_enviadas(historial: list[dict]) -> bool:
     )
 
 
+# Saludo por el 49 aniversario (plantilla con la tarjeta): la mayoría de
+# respuestas serán felicitaciones o agradecimientos; esas se contestan en
+# código con un agradecimiento. Las preguntas o cualquier otro tema siguen
+# su camino normal (Claude), y si piden pagar, las cuentas de abono.
+MARCADOR_PLANTILLA_ANIVERSARIO = "[plantilla enviada: Saludo 49 aniversario (tarjeta)]"
+MENSAJE_AGRADECIMIENTO_ANIVERSARIO = (
+    "¡Muchas gracias por sus palabras! 🎉 Seguimos trabajando por el bienestar "
+    "de usted y su familia. Cualquier consulta, escríbanos por este medio."
+)
+_PALABRAS_FELICITACION = {
+    "felicidades", "felicitaciones", "felicito", "felicitamos", "feliz", "gracias",
+    "bendiciones", "bendiga", "bendecida", "bendecido", "saludos", "aniversario",
+    "enhorabuena", "exitos", "exito", "adelante", "igualmente", "orgullo", "cumpleanos",
+}
+
+
+def _es_primera_respuesta_a_aniversario(historial: list[dict]) -> bool:
+    return bool(historial) and historial[-1]["content"].startswith(MARCADOR_PLANTILLA_ANIVERSARIO)
+
+
+def _es_felicitacion(texto: str) -> bool:
+    """Mensaje corto, sin preguntas, con alguna palabra de felicitación/agradecimiento."""
+    if "?" in (texto or ""):
+        return False
+    t = unicodedata.normalize("NFKD", (texto or "").lower())
+    palabras = re.findall(r"[a-z]+", "".join(c for c in t if not unicodedata.combining(c)))
+    return 0 < len(palabras) <= 25 and any(p in _PALABRAS_FELICITACION for p in palabras)
+
+
 def _es_primera_respuesta_a_morosidad(historial: list[dict]) -> bool:
     return bool(historial) and historial[-1]["content"].startswith(
         MARCADOR_PLANTILLA_MOROSIDAD
@@ -596,6 +626,17 @@ async def webhook_handler(request: Request):
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (aviso de morosidad): {respuesta}")
+                continue
+
+            # Respuesta al saludo de aniversario: una felicitación o
+            # agradecimiento se contesta con un agradecimiento fijo.
+            if (_es_primera_respuesta_a_aniversario(historial) and _es_felicitacion(msg.texto)
+                    and not expresa_intencion_de_pago(msg.texto)):
+                await guardar_mensaje(msg.telefono, "user", msg.texto)
+                respuesta = MENSAJE_AGRADECIMIENTO_ANIVERSARIO
+                await guardar_mensaje(msg.telefono, "assistant", respuesta)
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                logger.info(f"Respuesta a {msg.telefono} (saludo aniversario): {respuesta}")
                 continue
 
             # Intención de pago en cualquier otra conversación (pide número

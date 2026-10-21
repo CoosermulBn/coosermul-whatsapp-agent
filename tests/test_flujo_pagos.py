@@ -146,6 +146,19 @@ def probar():
     check("9 alerta de fallo visible", any(m["role"] == "sistema" and "No se pudo enviar" in m["content"] for m in historial))
     check("9 no dice enviado", not any("enviadas automáticamente" in m["content"] for m in historial))
 
+    # 10) saludo de aniversario: felicitaciones -> agradecimiento fijo; preguntas -> Claude;
+    #     pedir pagar -> cuentas de abono
+    reg = "[plantilla enviada: Saludo 49 aniversario (tarjeta)] "
+    guardar("51900000011", "humano", reg)
+    r = escribe("51900000011", "¡Felicidades por su aniversario! Que Dios los bendiga")
+    check("10 felicitacion: agradecimiento fijo", textos(r) == [main.MENSAJE_AGRADECIMIENTO_ANIVERSARIO] and docs(r) == [])
+    guardar("51900000012", "humano", reg)
+    r = escribe("51900000012", "gracias, cuándo es el sorteo?")
+    check("10b pregunta: la atiende Claude", textos(r) == ["RESPUESTA_DE_CLAUDE"])
+    guardar("51900000013", "humano", reg)
+    r = escribe("51900000013", "gracias, quiero pagar mi cuota, donde deposito")
+    check("10c pide pagar: cuentas", docs(r) == [CUENTAS])
+
     return fallos
 
 

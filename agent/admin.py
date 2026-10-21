@@ -156,6 +156,20 @@ PLANTILLAS_DISPONIBLES = {
             "asesores: https://wa.me/51996899924 o https://wa.me/51996899927"
         ),
     },
+    "saludo_aniversario_49_coosermul": {
+        "etiqueta": "Saludo 49 aniversario (tarjeta)",
+        "idioma": "es",
+        "variables": [],
+        "imagen_header": {
+            "ruta": os.path.join("data", "plantillas_media", "tarjeta_aniversario_49.jpg"),
+        },
+        "vista_previa": (
+            "[Tarjeta de saludo por el 49 aniversario]\n\nEstimado socio: Coosermul BN "
+            "Ltda. cumple 49 años de creación y queremos compartir este saludo con "
+            "usted. ¡Gracias por ser parte de nuestra cooperativa! — Gerencia "
+            "General, Coosermul BN"
+        ),
+    },
     "aviso_morosidad_cuota_v2": {
         "etiqueta": "Aviso de morosidad (cuota no cubierta)",
         "idioma": "es",
@@ -812,7 +826,8 @@ async def nueva_conversacion_enviar(
 
     proveedor = obtener_proveedor()
     enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables,
-        documento_header=info.get("documento_header"))
+        documento_header=info.get("documento_header"),
+        imagen_header=info.get("imagen_header"))
 
     if not enviado:
         logger.error(f"No se pudo enviar la plantilla {plantilla} a {telefono}")
@@ -932,7 +947,8 @@ async def nueva_masiva_enviar(
             continue
 
         enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables,
-        documento_header=info.get("documento_header"))
+        documento_header=info.get("documento_header"),
+        imagen_header=info.get("imagen_header"))
         if enviado:
             registro = f"[plantilla enviada: {info['etiqueta']}] " + " | ".join(variables)
             await guardar_mensaje(telefono, "humano", registro)

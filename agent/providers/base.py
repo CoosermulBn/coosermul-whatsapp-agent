@@ -75,12 +75,14 @@ class ProveedorWhatsApp(ABC):
     async def enviar_plantilla(
         self, telefono: str, nombre_plantilla: str, idioma: str, parametros: list[str],
         documento_header: dict | None = None,
+        imagen_header: dict | None = None,
     ) -> bool:
         """
         Envía un mensaje usando una plantilla aprobada (requerido para que el
         negocio inicie una conversación con alguien que no ha escrito antes,
         o fuera de la ventana de 24h). `documento_header` ({"ruta", "nombre"})
-        adjunta un archivo en el encabezado, para plantillas que lo llevan.
+        o `imagen_header` ({"ruta"}) adjuntan un archivo en el encabezado,
+        para plantillas que lo llevan.
         Retorna True si fue exitoso.
         """
         return False
