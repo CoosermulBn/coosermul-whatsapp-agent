@@ -426,7 +426,7 @@ app.include_router(admin_router)
 @app.get("/")
 async def health_check():
     """Endpoint de salud para Railway/monitoreo."""
-    return {"status": "ok", "service": "agentkit"}
+    return {"status": "ok", "service": "agentkit", "version": os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:7]}
 
 
 @app.get("/webhook")

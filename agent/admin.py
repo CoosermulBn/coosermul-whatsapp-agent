@@ -501,7 +501,7 @@ async def panel_admin(usuario: str = Depends(_verificar_credenciales)):
       <div class="toolbar">
         <div>
           <h1>Conversaciones de WhatsApp</h1>
-          <div class="sub">Coosermul BN · Soporte Coosermul</div>
+          <div class="sub">Coosermul BN · Soporte Coosermul · versión {os.getenv("RAILWAY_GIT_COMMIT_SHA", "local")[:7]}</div>
         </div>
         <div style="display:flex; gap:8px;">
           <a class="btn-nueva" href="/admin/nueva">+ Nueva conversación</a>
