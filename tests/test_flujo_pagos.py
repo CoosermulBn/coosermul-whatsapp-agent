@@ -115,11 +115,11 @@ def probar():
     reg = "[plantilla enviada: Campaña Navidad 2026] "
     guardar("51900000006", "humano", reg)
     r = escribe("51900000006", "Sí")
-    check("6 navidad sin pago: 3 laminas, sin cuentas", len(docs(r)) == 3 and CUENTAS not in docs(r))
+    check("6 navidad sin pago: laminas, sin cuentas", len(docs(r)) == 6 and CUENTAS not in docs(r))
     guardar("51900000007", "humano", reg)
     r = escribe("51900000007", "como pago la bolsa?")
     check("6b navidad con pago: laminas + cuentas",
-          len(docs(r)) == 4 and CUENTAS in docs(r)
+          len(docs(r)) == 7 and CUENTAS in docs(r)
           and textos(r) == [main.MENSAJE_NAVIDAD_SI, main.MENSAJE_CUENTAS_ABONO_VOUCHER])
 
     # 7) respuesta a recordatorio de pago diciendo que va a abonar

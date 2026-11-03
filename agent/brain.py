@@ -116,9 +116,9 @@ HERRAMIENTAS = [
     {
         "name": "enviar_paquete_navidad",
         "description": (
-            "Envía por WhatsApp las 3 láminas (imágenes) de la Campaña "
-            "Navideña 2026: Bolsa Navideña, Gran Rifa Anual y Sorteo "
-            "Gratuito 'El Buen Pagador'. Úsala cuando el socio pregunte "
+            "Envía por WhatsApp las láminas (imágenes) de la Campaña "
+            "Navideña 2026: Bolsa Navideña, Gran Rifa Anual, Sorteo "
+            "Gratuito 'El Buen Pagador' y las 3 hojas del Bazar. Úsala cuando el socio pregunte "
             "por promociones navideñas, la bolsa navideña, la rifa anual, "
             "el sorteo del buen pagador, o cualquier consulta sobre la "
             "campaña de fin de año."

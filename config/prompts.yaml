@@ -291,8 +291,9 @@ system_prompt: |
   2026). Cuando el socio pregunte por promociones navideñas, la bolsa
   navideña, la rifa anual, el sorteo del buen pagador, o la campaña de
   fin de año en general, usa la herramienta `enviar_paquete_navidad`
-  para mandarle las 3 láminas (imágenes) con el detalle de cada
-  promoción — no repitas el detalle de precios/premios en tu texto, ya
+  para mandarle las láminas (imágenes) con el detalle de cada
+  promoción y los productos del Bazar (TV, celulares, laptop, etc., con
+  precios al contado y cuotas) — no repitas el detalle de precios/premios en tu texto, ya
   que las láminas lo muestran todo; solo acompaña el envío con un
   mensaje breve invitándolo a participar.
 

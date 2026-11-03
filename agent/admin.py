@@ -1142,7 +1142,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
           <button class="btn-paquete" type="submit">📎 Enviar paquete de información</button>
         </form>
         <form class="form-paquete" method="post" action="/admin/chat/{tel_seguro}/enviar_navidad"
-              onsubmit="return confirm('¿Enviar las 3 láminas de la Campaña Navideña 2026?');">
+              onsubmit="return confirm('¿Enviar las láminas de la Campaña Navideña 2026 (incluye el Bazar)?');">
           <button class="btn-paquete" type="submit">🎄 Enviar Campaña Navideña 2026</button>
         </form>
       </div>
@@ -1307,7 +1307,7 @@ async def enviar_info_institucional_manual(telefono: str, usuario: str = Depends
 
 @router.post("/admin/chat/{telefono}/enviar_navidad")
 async def enviar_paquete_navidad_manual(telefono: str, usuario: str = Depends(_verificar_credenciales)):
-    """El equipo envía manualmente las 3 láminas de la Campaña Navideña 2026."""
+    """El equipo envía manualmente las láminas de la Campaña Navideña 2026."""
     proveedor = obtener_proveedor()
     archivos = resolver_paquete_navidad()
     enviados = []

@@ -249,12 +249,15 @@ FORMATOS_INFO_INSTITUCIONAL = [
 ]
 
 # Volantes de la Campaña Navideña 2026 (Bolsa Navideña, Gran Rifa Anual,
-# Sorteo "El Buen Pagador") — se envían como imágenes (no PDF) para que
+# Sorteo "El Buen Pagador" y las 3 hojas del Bazar) — se envían como imágenes (no PDF) para que
 # se vean como fotos grandes directo en el chat de WhatsApp.
 FORMATOS_CAMPANA_NAVIDAD = [
     "Campana Navidena 2026 - Bolsa Navidena.png",
     "Campana Navidena 2026 - Gran Rifa Anual.png",
     "Campana Navidena 2026 - Sorteo El Buen Pagador.png",
+    "Campana Navidena 2026 - Bazar 1.png",
+    "Campana Navidena 2026 - Bazar 2.png",
+    "Campana Navidena 2026 - Bazar 3.png",
 ]
 
 KNOWLEDGE_DIR = "knowledge"
@@ -304,7 +307,7 @@ def resolver_info_institucional() -> list[str]:
 
 
 def resolver_paquete_navidad() -> list[str]:
-    """Retorna los 3 volantes de la Campaña Navideña 2026."""
+    """Retorna los volantes de la Campaña Navideña 2026 (incluye el Bazar)."""
     return list(FORMATOS_CAMPANA_NAVIDAD)
 
 
