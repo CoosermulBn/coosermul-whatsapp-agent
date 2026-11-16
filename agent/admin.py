@@ -170,6 +170,21 @@ PLANTILLAS_DISPONIBLES = {
             "General, Coosermul BN"
         ),
     },
+    "fe_erratas_bolsa_navidena_2026": {
+        "etiqueta": "Fe de erratas Bolsa Navideña (lámina corregida)",
+        "idioma": "es",
+        "variables": [],
+        "imagen_header": {
+            "ruta": os.path.join("data", "plantillas_media", "lamina_bolsa_navidena_corregida.jpg"),
+        },
+        "vista_previa": (
+            "[Lámina de la Campaña Navideña corregida]\n\nEstimado socio: le pedimos "
+            "disculpas. En la lámina de la Campaña Navideña 2026 que le enviamos, la "
+            "Bolsa Navideña indicaba 4 bolsas de azúcar Dulfina de 1 kg, cuando lo "
+            "correcto es 2 bolsas. Adjuntamos la lámina corregida. Agradecemos su "
+            "comprensión. — Coosermul BN"
+        ),
+    },
     "aviso_morosidad_cuota_v2": {
         "etiqueta": "Aviso de morosidad (cuota no cubierta)",
         "idioma": "es",
