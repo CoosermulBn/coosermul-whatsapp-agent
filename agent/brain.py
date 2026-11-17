@@ -251,12 +251,13 @@ HERRAMIENTAS = [
     {
         "name": "escalar_a_humano",
         "description": (
-            "Avisa al equipo humano de Coosermul BN que este socio necesita "
-            "hablar con una persona, DENTRO de esta misma conversación de "
-            "WhatsApp (no lo mandes a otro número ni canal). Úsala cuando el "
-            "socio pida explícitamente hablar con un asesor/humano, o cuando "
-            "la consulta claramente no la puedes resolver tú (ej. reclamos, "
-            "casos muy específicos o delicados)."
+            "Deriva al socio con un Asesor personal de Coosermul BN: el sistema "
+            "le responde AUTOMÁTICAMENTE con los links de WhatsApp de los "
+            "asesores (no escribas tú el texto ni inventes otro número). Úsala "
+            "cuando el socio pida explícitamente hablar con un asesor/humano, "
+            "cuando el tema NO esté cubierto en tu información, o cuando la "
+            "consulta claramente no la puedes resolver tú (ej. reclamos, "
+            "pedidos de ayuda económica, casos muy específicos o delicados)."
         ),
         "input_schema": {
             "type": "object",
@@ -330,14 +331,16 @@ def _normalizar_para_claude(mensajes: list[dict]) -> list[dict]:
     return fusionados
 
 
-# Cuando Claude ya usó la herramienta `escalar_a_humano`, lo importante
-# (notificar al equipo) ya ocurrió — no depende de que una segunda
-# llamada a la API le ponga el texto de cierre. Si esa segunda llamada
-# falla (rate limit, red, etc.), el socio no debe ver el mensaje técnico
-# de error justo después de pedir ayuda con un reclamo; mostramos esto.
+# Cuando Claude usa la herramienta `escalar_a_humano` (tema que el bot no
+# está autorizado a responder, o el socio pide un asesor) NO se deja al socio
+# esperando en el chat: se le responde de inmediato con los links de WhatsApp
+# de los dos asesores para que entre directo a hablar con una persona. Es un
+# texto fijo (sin segunda llamada a la API), así que también sirve si esa
+# llamada falla y el socio no debe ver un mensaje técnico de error.
 MENSAJE_ESCALADO_SIN_TEXTO = (
-    "¡Listo! 🙌 Ya avisé a nuestro equipo, en breve te atenderá una "
-    "persona aquí mismo en este chat."
+    "Para ayudarte mejor con eso, comunícate directo con nuestro Asesor "
+    "personal por WhatsApp (toca el link para entrar a la conversación): "
+    "https://wa.me/51996899924 o https://wa.me/51996899927"
 )
 
 

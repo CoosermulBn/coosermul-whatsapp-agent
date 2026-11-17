@@ -33,7 +33,6 @@ from agent.memory import (
     inicializar_db,
     guardar_mensaje,
     obtener_historial,
-    activar_modo_humano,
     esta_en_modo_humano,
     guardar_adjunto,
 )
@@ -78,11 +77,12 @@ MENSAJE_DESPEDIDA = (
 )
 
 # Respuesta fija cuando el socio presiona el botón "Sí" para hablar con el
-# Asesor personal. No pasa por Claude: garantiza que SIEMPRE se
-# escale a un humano, sin depender de que el modelo interprete el botón.
+# Asesor personal. No pasa por Claude: garantiza que SIEMPRE reciba los
+# links de los asesores, sin depender de que el modelo interprete el botón.
 MENSAJE_ASESOR_CONFIRMADO = (
-    "¡Listo! 🙌 Ya avisé a nuestro Asesor personal, en breve te "
-    "atenderá aquí mismo en este chat."
+    "¡Listo! 🙌 Para hablar directo con nuestro Asesor personal, toca el "
+    "link y escríbele por WhatsApp: https://wa.me/51996899924 o "
+    "https://wa.me/51996899927"
 )
 
 # La primera respuesta a la plantilla "Autorización de info (no socios
@@ -501,7 +501,6 @@ async def webhook_handler(request: Request):
                 await guardar_mensaje(msg.telefono, "user", f"[botón] {msg.texto or 'Sí'}")
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)
-                await activar_modo_humano(msg.telefono)
                 logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
                 continue
 
@@ -703,11 +702,12 @@ async def webhook_handler(request: Request):
 
             logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
 
-            # Si Claude pidió escalar, activamos el modo humano DESPUÉS de
-            # enviar la respuesta (para que el bot se despida antes de callar)
+            # Si Claude pidió escalar, el socio ya recibió los links de los
+            # asesores (texto fijo de brain.py). NO se activa el modo humano:
+            # antes el bot quedaba mudo y el socio se quedaba escribiendo sin
+            # respuesta si nadie contestaba desde el panel.
             if resultado.get("escalar"):
-                await activar_modo_humano(msg.telefono)
-                logger.info(f"Conversacion con {msg.telefono} pasada a modo humano: {resultado.get('motivo_escalamiento', '')}")
+                logger.info(f"Conversacion con {msg.telefono} derivada a los asesores por WhatsApp: {resultado.get('motivo_escalamiento', '')}")
 
         return {"status": "ok"}
 
