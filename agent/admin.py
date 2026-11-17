@@ -415,7 +415,12 @@ SCRIPT_NOTIFICACIONES = """
       if (pendientes.length > 0) {
         banner.style.display = 'block';
         banner.innerHTML = '🔔 ' + pendientes.length + ' conversación(es) esperando un asesor: ' +
-          pendientes.map(function (t) { return '<a href="/admin/chat/' + t + '">' + t + '</a>'; }).join(', ');
+          pendientes.map(function (t) { return '<a href="/admin/chat/' + t + '">' + t + '</a>'; }).join(', ') +
+          '<form method="post" action="/admin/liberar_todos" style="margin-top:10px" ' +
+          'onsubmit="return confirm(&quot;¿Devolver al bot las ' + pendientes.length + ' conversaciones? ' +
+          'El bot volverá a responderles. Los mensajes ya recibidos no se contestan solos.&quot;);">' +
+          '<button type="submit" style="background:#fff;color:#b91c1c;border:none;border-radius:8px;padding:8px 14px;' +
+          'font-size:13px;font-weight:600;cursor:pointer">🔓 Devolver las ' + pendientes.length + ' al bot</button></form>';
         parpadearTitulo(true);
       } else {
         banner.style.display = 'none';
@@ -1105,7 +1110,7 @@ async def panel_chat(telefono: str, usuario: str = Depends(_verificar_credencial
     badge = '<span class="badge">Necesita humano</span>' if en_modo_humano else ""
     boton_liberar = (
         f'<form method="post" action="/admin/chat/{tel_seguro}/liberar">'
-        f'<button class="btn-liberar" type="submit">Devolver al bot</button></form>'
+        f'<button class="btn-liberar" type="submit">🔓 Liberar chat (devolver al bot)</button></form>'
         if en_modo_humano else ""
     )
     boton_borrar = f"""
@@ -1343,6 +1348,17 @@ async def enviar_paquete_navidad_manual(telefono: str, usuario: str = Depends(_v
         # respondiendo con normalidad al socio después (igual que cuando
         # el propio bot envía este paquete automáticamente al responder "Sí").
     return RedirectResponse(url=f"/admin/chat/{telefono}", status_code=303)
+
+
+@router.post("/admin/liberar_todos")
+async def liberar_todos(usuario: str = Depends(_verificar_credenciales)):
+    """Devuelve al bot todas las conversaciones que están en modo humano."""
+    conversaciones = await listar_conversaciones()
+    telefonos = [c["telefono"] for c in conversaciones if c.get("modo_humano")]
+    for telefono in telefonos:
+        await desactivar_modo_humano(telefono)
+    logger.info(f"{usuario} devolvió {len(telefonos)} conversaciones al bot")
+    return RedirectResponse(url="/admin", status_code=303)
 
 
 @router.post("/admin/chat/{telefono}/liberar")
