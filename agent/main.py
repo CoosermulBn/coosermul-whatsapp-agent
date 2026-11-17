@@ -44,6 +44,8 @@ from agent.tools import (
     resolver_cuentas_abono,
     resolver_paquete_navidad,
     ruta_completa,
+    links_asesores,
+    texto_para_asesor,
 )
 
 load_dotenv()
@@ -79,11 +81,20 @@ MENSAJE_DESPEDIDA = (
 # Respuesta fija cuando el socio presiona el botón "Sí" para hablar con el
 # Asesor personal. No pasa por Claude: garantiza que SIEMPRE reciba los
 # links de los asesores, sin depender de que el modelo interprete el botón.
-MENSAJE_ASESOR_CONFIRMADO = (
-    "¡Listo! 🙌 Para hablar directo con nuestro Asesor personal, toca el "
-    "link y escríbele por WhatsApp: https://wa.me/51996899924 o "
-    "https://wa.me/51996899927"
-)
+def _mensaje_asesor_confirmado(frase: str, ultimo_mensaje: str) -> str:
+    return (
+        "¡Listo! 🙌 Para hablar directo con nuestro Asesor personal, toca el "
+        "link (tu consulta ya va escrita, solo envía el mensaje): "
+        + links_asesores(texto_para_asesor(frase, ultimo_mensaje))
+    )
+
+
+def _ultimo_texto_del_socio(historial: list[dict]) -> str:
+    """Lo último que el socio escribió él mismo (sin botones ni adjuntos)."""
+    for m in reversed(historial):
+        if m["role"] == "user" and not m["content"].startswith("["):
+            return m["content"]
+    return ""
 
 # La primera respuesta a la plantilla "Autorización de info (no socios
 # BN)" se maneja 100% en código (sin pasar por Claude): varias pruebas
@@ -495,9 +506,14 @@ async def webhook_handler(request: Request):
 
             # Botón "Sí, hablar con un asesor": escalamos DIRECTO, sin pasar
             # por Claude, para garantizar que siempre funcione igual.
-            if msg.tipo == "boton" and msg.boton_id == "asesor_si":
+            if msg.tipo == "boton" and msg.boton_id.split("|", 1)[0] == "asesor_si":
                 logger.info(f"Boton 'asesor_si' presionado por {msg.telefono}")
-                respuesta = MENSAJE_ASESOR_CONFIRMADO
+                # El id del botón puede traer, tras "|", la consulta ya redactada
+                # para dejarla escrita en el link del asesor; si no (botones
+                # viejos), se usa lo último que escribió el socio.
+                frase = msg.boton_id.partition("|")[2]
+                ultimo = "" if frase else _ultimo_texto_del_socio(await obtener_historial(msg.telefono))
+                respuesta = _mensaje_asesor_confirmado(frase, ultimo)
                 await guardar_mensaje(msg.telefono, "user", f"[botón] {msg.texto or 'Sí'}")
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
                 await proveedor.enviar_mensaje(msg.telefono, respuesta)

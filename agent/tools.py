@@ -12,6 +12,7 @@ import re
 import yaml
 import logging
 from datetime import datetime
+from urllib.parse import quote
 
 logger = logging.getLogger("agentkit")
 
@@ -261,6 +262,44 @@ FORMATOS_CAMPANA_NAVIDAD = [
 ]
 
 KNOWLEDGE_DIR = "knowledge"
+
+# Números de WhatsApp de los Asesores personales. Los links wa.me aceptan
+# ?text=... para dejar escrito el primer mensaje: así el socio solo toca
+# "enviar" y el asesor ya sabe de qué se trata.
+ASESORES_WHATSAPP = ["51996899924", "51996899927"]
+
+
+def texto_para_asesor(frase: str = "", ultimo_mensaje: str = "") -> str:
+    """
+    Primer mensaje que le llega al asesor. Usa la frase pensada para eso (en
+    primera persona, ej. "Quiero información del crédito para la
+    gratificación"); si no hay, cita lo último que escribió el socio.
+    """
+    frase = " ".join((frase or "").split())[:200]
+    if frase:
+        return frase
+    ultimo = " ".join((ultimo_mensaje or "").split())[:200]
+    if ultimo:
+        return f"Hola, necesito atención de un asesor. Mi consulta: {ultimo}"
+    return "Hola, necesito atención de un asesor."
+
+
+def link_asesor(numero: str, texto: str = "") -> str:
+    """Link wa.me al asesor, con el mensaje ya escrito si se da `texto`."""
+    link = f"https://wa.me/{numero}"
+    return f"{link}?text={quote(texto, safe='')}" if texto else link
+
+
+def links_asesores(texto: str = "") -> str:
+    """Los links de los dos asesores, con el mismo mensaje ya escrito."""
+    return " o ".join(link_asesor(n, texto) for n in ASESORES_WHATSAPP)
+
+
+def frase_de_tramite(tramite: str) -> str:
+    """'tu crédito a sola firma' -> 'Hola, quiero información sobre mi crédito a sola firma'."""
+    t = " ".join((tramite or "").split())
+    t = re.sub(r"^(tu|su)\s+", "mi ", t, flags=re.I)
+    return f"Hola, quiero información sobre {t}" if t else ""
 
 
 def ruta_completa(nombre_archivo: str) -> str:

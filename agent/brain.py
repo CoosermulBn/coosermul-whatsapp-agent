@@ -25,6 +25,11 @@ from agent.tools import (
     resolver_paquete_navidad,
     ruta_completa,
     verificar_socio,
+    texto_para_asesor,
+    links_asesores,
+    frase_de_tramite,
+    link_asesor,
+    ASESORES_WHATSAPP,
 )
 
 load_dotenv()
@@ -35,6 +40,10 @@ client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # Modelo de Claude a usar (el más reciente Sonnet disponible)
 MODELO = "claude-sonnet-5"
+
+# Botón "Sí" de hablar con un asesor: el id puede llevar después de "|" el primer
+# mensaje que se le deja escrito al socio en el link de WhatsApp del asesor.
+ID_BOTON_ASESOR_SI = "asesor_si"
 
 # Herramientas que Claude puede usar para activar el envío de documentos.
 # Los nombres de archivo NO se le muestran al modelo: el modelo solo dice
@@ -243,7 +252,15 @@ HERRAMIENTAS = [
                         "con nuestro Asesor personal para que te "
                         "ayude directamente.'"
                     ),
-                }
+                },
+                "consulta": {
+                    "type": "string",
+                    "description": (
+                        "Primer mensaje que le llegará ya escrito al asesor, en "
+                        "primera persona, breve (ej. 'Hola, quiero información "
+                        "del crédito para la gratificación')"
+                    ),
+                },
             },
             "required": ["mensaje"],
         },
@@ -265,9 +282,18 @@ HERRAMIENTAS = [
                 "motivo": {
                     "type": "string",
                     "description": "Resumen breve de por qué el socio necesita un humano",
-                }
+                },
+                "mensaje_para_asesor": {
+                    "type": "string",
+                    "description": (
+                        "Primer mensaje que le llegará ya escrito al asesor, en "
+                        "primera persona y como si lo escribiera el socio, breve "
+                        "(ej. 'Hola, quiero información del crédito para la "
+                        "gratificación')"
+                    ),
+                },
             },
-            "required": ["motivo"],
+            "required": ["motivo", "mensaje_para_asesor"],
         },
     },
 ]
@@ -336,12 +362,15 @@ def _normalizar_para_claude(mensajes: list[dict]) -> list[dict]:
 # esperando en el chat: se le responde de inmediato con los links de WhatsApp
 # de los dos asesores para que entre directo a hablar con una persona. Es un
 # texto fijo (sin segunda llamada a la API), así que también sirve si esa
-# llamada falla y el socio no debe ver un mensaje técnico de error.
-MENSAJE_ESCALADO_SIN_TEXTO = (
-    "Para ayudarte mejor con eso, comunícate directo con nuestro Asesor "
-    "personal por WhatsApp (toca el link para entrar a la conversación): "
-    "https://wa.me/51996899924 o https://wa.me/51996899927"
-)
+# llamada falla y el socio no debe ver un mensaje técnico de error. Los links
+# llevan el primer mensaje ya escrito (lo que el socio quería consultar).
+def mensaje_derivacion(frase: str = "", ultimo_mensaje: str = "") -> str:
+    return (
+        "Para ayudarte mejor con eso, comunícate directo con nuestro Asesor "
+        "personal por WhatsApp (toca el link: tu consulta ya va escrita, solo "
+        "envía el mensaje): "
+        + links_asesores(texto_para_asesor(frase, ultimo_mensaje))
+    )
 
 
 def _texto_de(response) -> str:
@@ -442,6 +471,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
 
     if nombre == "pedir_boleta_y_ofrecer_asesor":
         tramite = entrada.get("tramite", "").strip() or "tu trámite"
+        frase = frase_de_tramite(tramite)
         mensaje_botones = (
             f"Antes de enviarte los documentos para {tramite}, necesitamos "
             "evaluar tu capacidad de crédito. ¿Nos podrías enviar tu boleta "
@@ -449,7 +479,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "te enviaremos los documentos.\n\n"
             "Si prefieres, también puedes comunicarte ahora mismo con "
             "nuestro Asesor personal para que te ayude directamente al "
-            "siguiente link: https://wa.me/51996899924"
+            f"siguiente link: {link_asesor(ASESORES_WHATSAPP[0], frase)}"
         )
         return {
             "resultado_texto": "Mensaje con botones mostrado al socio (pedido de boleta + opción de asesor).",
@@ -458,7 +488,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "botones": {
                 "mensaje": mensaje_botones,
                 "opciones": [
-                    {"id": "asesor_si", "titulo": "Sí"},
+                    {"id": ID_BOTON_ASESOR_SI + ("|" + frase if frase else ""), "titulo": "Sí"},
                     {"id": "asesor_no", "titulo": "No"},
                 ],
             },
@@ -485,6 +515,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
         }
 
     if nombre == "preguntar_hablar_con_asesor":
+        consulta = " ".join((entrada.get("consulta") or "").split())[:200]
         mensaje_botones = entrada.get(
             "mensaje", "¿Quieres que te comunique ahora mismo con nuestro Asesor personal?"
         )
@@ -495,7 +526,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "botones": {
                 "mensaje": mensaje_botones,
                 "opciones": [
-                    {"id": "asesor_si", "titulo": "Sí"},
+                    {"id": ID_BOTON_ASESOR_SI + ("|" + consulta if consulta else ""), "titulo": "Sí"},
                     {"id": "asesor_no", "titulo": "No"},
                 ],
             },
@@ -511,6 +542,7 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "documentos": [],
             "escalar": True,
             "motivo": motivo,
+            "mensaje_para_asesor": entrada.get("mensaje_para_asesor", ""),
         }
 
     return {"resultado_texto": f"Herramienta desconocida: {nombre}", "documentos": [], "escalar": False}
@@ -560,6 +592,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
     documentos_totales: list[dict] = []
     escalar_total = False
     motivo_total = ""
+    frase_asesor = ""
     botones_total: dict | None = None
     lista_total: dict | None = None
 
@@ -618,6 +651,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
                         escalar_total = True
                         escalar_este_turno = True
                         motivo_total = resultado.get("motivo", "")
+                        frase_asesor = resultado.get("mensaje_para_asesor", "")
                     if resultado.get("botones"):
                         botones_total = resultado["botones"]
                     if resultado.get("lista"):
@@ -636,7 +670,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             if escalar_este_turno:
                 logger.info("escalar_a_humano ejecutado: se corta sin segunda vuelta a Claude")
                 return {
-                    "texto": MENSAJE_ESCALADO_SIN_TEXTO,
+                    "texto": mensaje_derivacion(frase_asesor, mensaje),
                     "documentos": documentos_totales,
                     "escalar": escalar_total,
                     "motivo_escalamiento": motivo_total,
@@ -663,7 +697,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
         # ejecutando otra herramienta del mismo turno) el socio ya pidio
         # ayuda con algo puntual: mejor confirmarle que fue escalado que
         # mostrarle el mensaje tecnico generico.
-        texto = MENSAJE_ESCALADO_SIN_TEXTO if escalar_total else obtener_mensaje_error()
+        texto = mensaje_derivacion(frase_asesor, mensaje) if escalar_total else obtener_mensaje_error()
         return {
             "texto": texto,
             "documentos": documentos_totales,
