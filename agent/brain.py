@@ -66,7 +66,7 @@ HERRAMIENTAS = [
             "cualquier crédito en efectivo (Solicitud de Créditos, Pagaré, "
             "Contrato de Crédito). Úsala cuando el socio confirme que quiere "
             "tramitar/solicitar un crédito en efectivo (sola firma, "
-            "garantizado, gratificación, etc. — NO para el Bazar), sin "
+            "gratificación, etc. — NO para el Bazar), sin "
             "importar el monto o tipo de crédito."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
