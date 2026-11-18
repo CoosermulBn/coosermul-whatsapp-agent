@@ -45,6 +45,7 @@ from agent.tools import (
     resolver_paquete_navidad,
     ruta_completa,
     links_asesores,
+    botones_asesores,
     texto_para_asesor,
 )
 
@@ -81,12 +82,23 @@ MENSAJE_DESPEDIDA = (
 # Respuesta fija cuando el socio presiona el botón "Sí" para hablar con el
 # Asesor personal. No pasa por Claude: garantiza que SIEMPRE reciba los
 # links de los asesores, sin depender de que el modelo interprete el botón.
-def _mensaje_asesor_confirmado(frase: str, ultimo_mensaje: str) -> str:
+def _mensaje_asesor_confirmado() -> str:
     return (
         "¡Listo! 🙌 Para hablar directo con nuestro Asesor personal, toca el "
-        "link (tu consulta ya va escrita, solo envía el mensaje): "
-        + links_asesores(texto_para_asesor(frase, ultimo_mensaje))
+        "botón (tu consulta ya va escrita, solo envía el mensaje)."
     )
+
+
+async def _enviar_derivacion(telefono: str, texto: str, asesores: list[dict]) -> None:
+    """
+    Envía el texto + un botón de WhatsApp por asesor (el link queda oculto
+    tras el botón). Si WhatsApp rechaza un botón, ese asesor se envía como
+    link en texto para que el socio nunca se quede sin salida.
+    """
+    for i, a in enumerate(asesores):
+        cuerpo = texto if i == 0 else "O, si prefieres, con nuestro otro Asesor personal:"
+        if not await proveedor.enviar_boton_url(telefono, cuerpo, a["titulo"], a["url"]):
+            await proveedor.enviar_mensaje(telefono, f"{cuerpo} {a['url']}")
 
 
 def _ultimo_texto_del_socio(historial: list[dict]) -> str:
@@ -513,10 +525,12 @@ async def webhook_handler(request: Request):
                 # viejos), se usa lo último que escribió el socio.
                 frase = msg.boton_id.partition("|")[2]
                 ultimo = "" if frase else _ultimo_texto_del_socio(await obtener_historial(msg.telefono))
-                respuesta = _mensaje_asesor_confirmado(frase, ultimo)
+                respuesta = _mensaje_asesor_confirmado()
                 await guardar_mensaje(msg.telefono, "user", f"[botón] {msg.texto or 'Sí'}")
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_derivacion(
+                    msg.telefono, respuesta, botones_asesores(texto_para_asesor(frase, ultimo))
+                )
                 logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
                 continue
 
@@ -697,7 +711,10 @@ async def webhook_handler(request: Request):
                 )
 
             # Enviar respuesta por WhatsApp via el proveedor
-            await proveedor.enviar_mensaje(msg.telefono, respuesta)
+            if resultado.get("asesores"):
+                await _enviar_derivacion(msg.telefono, respuesta, resultado["asesores"])
+            else:
+                await proveedor.enviar_mensaje(msg.telefono, respuesta)
 
             # Si Claude pidió mostrar los botones Sí/No (ej. para ofrecer
             # hablar con un asesor), los enviamos como mensaje aparte.

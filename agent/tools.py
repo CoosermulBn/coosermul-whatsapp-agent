@@ -295,6 +295,18 @@ def links_asesores(texto: str = "") -> str:
     return " o ".join(link_asesor(n, texto) for n in ASESORES_WHATSAPP)
 
 
+def botones_asesores(texto: str = "") -> list[dict]:
+    """
+    Un botón por asesor ({"titulo", "url"}) con el mensaje ya escrito. Se
+    envían como botones de WhatsApp para no mostrar la URL larga (con el
+    texto codificado), que parece sospechosa.
+    """
+    return [
+        {"titulo": f"Hablar con Asesor {i}", "url": link_asesor(n, texto)}
+        for i, n in enumerate(ASESORES_WHATSAPP, 1)
+    ]
+
+
 def frase_de_tramite(tramite: str) -> str:
     """'tu crédito a sola firma' -> 'Hola, quiero información sobre mi crédito a sola firma'."""
     t = " ".join((tramite or "").split())

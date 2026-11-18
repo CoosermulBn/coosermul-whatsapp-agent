@@ -289,6 +289,44 @@ class ProveedorMeta(ProveedorWhatsApp):
                 logger.error(f"Error enviando botones via Meta API: {r.status_code} — {r.text}")
             return r.status_code == 200
 
+    async def enviar_boton_url(
+        self, telefono: str, texto: str, texto_boton: str, url: str
+    ) -> bool:
+        """
+        Envía un mensaje interactivo con un botón "cta_url": el socio ve solo
+        el texto del botón (ej. "Hablar con Asesor 1") y no la URL larga.
+        """
+        if not self.access_token or not self.phone_number_id:
+            logger.warning("META_ACCESS_TOKEN o META_PHONE_NUMBER_ID no configurados")
+            return False
+        api = f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": telefono,
+            "type": "interactive",
+            "interactive": {
+                "type": "cta_url",
+                "body": {"text": texto[:1024]},
+                "action": {
+                    "name": "cta_url",
+                    "parameters": {"display_text": texto_boton[:20], "url": url},
+                },
+            },
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                r = await client.post(api, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                logger.error(f"Error de red enviando botón con link via Meta API: {e}")
+                return False
+            if r.status_code != 200:
+                logger.error(f"Error enviando botón con link via Meta API: {r.status_code} — {r.text}")
+            return r.status_code == 200
+
     async def enviar_lista(
         self, telefono: str, texto: str, texto_boton: str, filas: list[dict]
     ) -> bool:

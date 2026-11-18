@@ -27,6 +27,7 @@ from agent.tools import (
     verificar_socio,
     texto_para_asesor,
     links_asesores,
+    botones_asesores,
     frase_de_tramite,
     link_asesor,
     ASESORES_WHATSAPP,
@@ -364,7 +365,28 @@ def _normalizar_para_claude(mensajes: list[dict]) -> list[dict]:
 # texto fijo (sin segunda llamada a la API), así que también sirve si esa
 # llamada falla y el socio no debe ver un mensaje técnico de error. Los links
 # llevan el primer mensaje ya escrito (lo que el socio quería consultar).
+#
+# Para que el chat no muestre una URL larga (wa.me/...?text=%C3%B3...) que
+# parece sospechosa, el mensaje va SIN links y los asesores se envían como
+# botones de WhatsApp ("Hablar con Asesor 1/2"); ver `asesores` en el
+# resultado de generar_respuesta y `_enviar_derivacion` en main.py.
+TEXTO_DERIVACION = (
+    "Para ayudarte mejor con eso, comunícate directo con nuestro Asesor "
+    "personal por WhatsApp. Toca el botón: tu consulta ya va escrita, solo "
+    "envía el mensaje."
+)
+
+
+def datos_derivacion(frase: str = "", ultimo_mensaje: str = "") -> dict:
+    """Texto sin links + botones de los asesores (con la consulta ya escrita)."""
+    return {
+        "texto": TEXTO_DERIVACION,
+        "asesores": botones_asesores(texto_para_asesor(frase, ultimo_mensaje)),
+    }
+
+
 def mensaje_derivacion(frase: str = "", ultimo_mensaje: str = "") -> str:
+    """Versión con los links en el texto (solo como respaldo si falla un botón)."""
     return (
         "Para ayudarte mejor con eso, comunícate directo con nuestro Asesor "
         "personal por WhatsApp (toca el link: tu consulta ya va escrita, solo "
@@ -478,8 +500,8 @@ def _ejecutar_herramienta(nombre: str, entrada: dict) -> dict:
             "de pago (o de pensión) más reciente? En cuanto la evaluemos, "
             "te enviaremos los documentos.\n\n"
             "Si prefieres, también puedes comunicarte ahora mismo con "
-            "nuestro Asesor personal para que te ayude directamente al "
-            f"siguiente link: {link_asesor(ASESORES_WHATSAPP[0], frase)}"
+            "nuestro Asesor personal para que te ayude directamente: "
+            "toca «Sí» y te paso sus botones de WhatsApp."
         )
         return {
             "resultado_texto": "Mensaje con botones mostrado al socio (pedido de boleta + opción de asesor).",
@@ -670,7 +692,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
             if escalar_este_turno:
                 logger.info("escalar_a_humano ejecutado: se corta sin segunda vuelta a Claude")
                 return {
-                    "texto": mensaje_derivacion(frase_asesor, mensaje),
+                    **datos_derivacion(frase_asesor, mensaje),
                     "documentos": documentos_totales,
                     "escalar": escalar_total,
                     "motivo_escalamiento": motivo_total,
@@ -697,9 +719,9 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> dict:
         # ejecutando otra herramienta del mismo turno) el socio ya pidio
         # ayuda con algo puntual: mejor confirmarle que fue escalado que
         # mostrarle el mensaje tecnico generico.
-        texto = mensaje_derivacion(frase_asesor, mensaje) if escalar_total else obtener_mensaje_error()
+        derivacion = datos_derivacion(frase_asesor, mensaje) if escalar_total else {"texto": obtener_mensaje_error()}
         return {
-            "texto": texto,
+            **derivacion,
             "documentos": documentos_totales,
             "escalar": escalar_total,
             "motivo_escalamiento": motivo_total,

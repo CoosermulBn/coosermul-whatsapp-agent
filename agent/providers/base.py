@@ -61,6 +61,16 @@ class ProveedorWhatsApp(ABC):
         """
         return False
 
+    async def enviar_boton_url(
+        self, telefono: str, texto: str, texto_boton: str, url: str
+    ) -> bool:
+        """
+        Envía un mensaje con UN botón que abre un link (el link queda oculto
+        tras el texto del botón, así no se ve una URL larga en el chat).
+        Retorna True si fue exitoso.
+        """
+        return False
+
     async def enviar_lista(
         self, telefono: str, texto: str, texto_boton: str, filas: list[dict]
     ) -> bool:
