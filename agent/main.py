@@ -29,6 +29,7 @@ from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
+from agent.bloqueados import esta_bloqueado
 from agent.memory import (
     inicializar_db,
     guardar_mensaje,
@@ -474,6 +475,12 @@ async def webhook_handler(request: Request):
         for msg in mensajes:
             # Ignorar mensajes propios (los que envió el propio agente)
             if msg.es_propio:
+                continue
+
+            # Números bloqueados (config/numeros_bloqueados.txt): se ignoran
+            # por completo, sin responder ni guardar el mensaje.
+            if esta_bloqueado(msg.telefono):
+                logger.info(f"Mensaje ignorado: {msg.telefono} esta bloqueado")
                 continue
 
             # Meta reportó que un envío nuestro (plantilla, documento, texto)

@@ -37,6 +37,7 @@ from agent.memory import (
     obtener_respuestas_por_plantilla,
 )
 from agent.providers import obtener_proveedor
+from agent.bloqueados import esta_bloqueado
 from agent.tools import (
     resolver_paquete_credito,
     resolver_paquete_inscripcion,
@@ -964,6 +965,9 @@ async def nueva_masiva_enviar(
         variables = partes[1:]
         if not telefono:
             resultados.append({"telefono": linea, "ok": False, "detalle": "número inválido"})
+            continue
+        if esta_bloqueado(telefono):
+            resultados.append({"telefono": telefono, "ok": False, "detalle": "número bloqueado, no se envió"})
             continue
 
         enviado = await proveedor.enviar_plantilla(telefono, plantilla, info["idioma"], variables,
