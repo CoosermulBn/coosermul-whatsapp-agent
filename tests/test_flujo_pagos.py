@@ -13,7 +13,7 @@ sys.path.insert(0, RAIZ)
 
 from fastapi.testclient import TestClient
 
-from agent import main, memory
+from agent import identidad, main, memory
 from agent.providers.base import MensajeEntrante
 
 CUENTAS = "Cuentas de Abono - Coosermul BN.pdf"
@@ -76,8 +76,18 @@ def docs(enviados):
     return [n for k, n in enviados if k == "doc"]
 
 
+def _sin_identidad(t):
+    """Quita el inicio/cierre que agrega agent/identidad.py a cada respuesta."""
+    sep = chr(10) * 2
+    if t.startswith(identidad.INICIO + sep):
+        t = t[len(identidad.INICIO) + 2:]
+    if t.endswith(sep + identidad.CIERRE):
+        t = t[: -(len(identidad.CIERRE) + 2)]
+    return t
+
+
 def textos(enviados):
-    return [n for k, n in enviados if k == "texto"]
+    return [_sin_identidad(n) for k, n in enviados if k == "texto"]
 
 
 def probar():
@@ -95,6 +105,11 @@ def probar():
     r = escribe("51900000001", "y donde deposito")
     check("2 no reenvia el pdf", docs(r) == [])
     check("2 responde Claude", textos(r) == ["RESPUESTA_DE_CLAUDE"])
+    crudo = [n for k, n in r if k == "texto"]
+    check("2 inicia con asistente virtual y cierra con contactos",
+          len(crudo) == 1 and crudo[0] == identidad.con_identidad("RESPUESTA_DE_CLAUDE")
+          and crudo[0].startswith("🤖 *Soy un asistente virtual.*")
+          and crudo[0].endswith("https://wa.me/51996899927"))
     # 3) mensaje sin relación: no dispara
     r = escribe("51900000002", "Buenas tardes, quiero información de créditos")
     check("3 no envia cuentas", docs(r) == [] and textos(r) == ["RESPUESTA_DE_CLAUDE"])

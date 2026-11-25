@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
 from agent.bloqueados import esta_bloqueado
+from agent.identidad import con_identidad
 from agent.memory import (
     inicializar_db,
     guardar_mensaje,
@@ -90,6 +91,13 @@ def _mensaje_asesor_confirmado() -> str:
     )
 
 
+async def _enviar_texto(telefono: str, texto: str) -> None:
+    """Envía una respuesta del bot empezando con "Soy un asistente virtual" y
+    cerrando con los contactos (ver agent/identidad.py). El historial guarda
+    el texto original, sin estos añadidos."""
+    await proveedor.enviar_mensaje(telefono, con_identidad(texto))
+
+
 async def _enviar_derivacion(telefono: str, texto: str, asesores: list[dict]) -> None:
     """
     Envía el texto + un botón de WhatsApp por asesor (el link queda oculto
@@ -97,7 +105,12 @@ async def _enviar_derivacion(telefono: str, texto: str, asesores: list[dict]) ->
     link en texto para que el socio nunca se quede sin salida.
     """
     for i, a in enumerate(asesores):
-        cuerpo = texto if i == 0 else "O, si prefieres, con nuestro otro Asesor personal:"
+        # Los botones de los asesores hacen de cierre de contacto: solo se
+        # antepone la presentación como asistente virtual.
+        cuerpo = (
+            con_identidad(texto, con_cierre=False)
+            if i == 0 else "O, si prefieres, con nuestro otro Asesor personal:"
+        )
         if not await proveedor.enviar_boton_url(telefono, cuerpo, a["titulo"], a["url"]):
             await proveedor.enviar_mensaje(telefono, f"{cuerpo} {a['url']}")
 
@@ -519,7 +532,7 @@ async def webhook_handler(request: Request):
 
                 await guardar_mensaje(msg.telefono, "user", registro)
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
                 continue
 
@@ -554,7 +567,7 @@ async def webhook_handler(request: Request):
                 respuesta = MENSAJE_DESPEDIDA
                 await guardar_mensaje(msg.telefono, "user", f"[opción de menú] {msg.texto}")
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono}: {respuesta}")
                 continue
 
@@ -584,11 +597,11 @@ async def webhook_handler(request: Request):
                 if _es_negativa_clara(msg.texto):
                     respuesta = MENSAJE_NEGATIVA_AUTORIZACION
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                 elif not _es_positiva_clara_autorizacion(msg.texto):
                     respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                 else:
                     await _enviar_documentos(
                         msg.telefono, resolver_info_institucional(),
@@ -596,7 +609,7 @@ async def webhook_handler(request: Request):
                     )
                     respuesta = MENSAJE_INFO_AUTORIZACION_ENVIADA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                     await proveedor.enviar_lista(msg.telefono, MENU_B_TEXTO, MENU_B_BOTON, MENU_B_FILAS)
                 logger.info(f"Respuesta a {msg.telefono} (autorizacion info): {respuesta}")
                 continue
@@ -609,20 +622,20 @@ async def webhook_handler(request: Request):
                 if _es_reclamo_ya_pago(msg.texto):
                     respuesta = MENSAJE_YA_PAGO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                 elif _es_agradecimiento_simple(msg.texto):
                     respuesta = MENSAJE_AGRADECIMIENTO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                 elif not (_es_solicitud_info_clara_recordatorio(msg.texto) or expresa_intencion_de_pago(msg.texto)):
                     respuesta = MENSAJE_NO_RECONOCIDO_PLANTILLA
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                 else:
                     await _enviar_cuentas_de_abono(msg.telefono, "respuesta a recordatorio de pago")
                     respuesta = MENSAJE_CUENTAS_ABONO_RECORDATORIO
                     await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                    await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                    await _enviar_texto(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (recordatorio pago): {respuesta}")
                 continue
 
@@ -642,7 +655,7 @@ async def webhook_handler(request: Request):
                     await _enviar_cuentas_de_abono(msg.telefono, "respuesta a campaña navidad / rifa")
                 respuesta = MENSAJE_NAVIDAD_SI
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
                 if pide_pagar:
                     await guardar_mensaje(msg.telefono, "assistant", MENSAJE_CUENTAS_ABONO_VOUCHER)
                     await proveedor.enviar_mensaje(msg.telefono, MENSAJE_CUENTAS_ABONO_VOUCHER)
@@ -660,7 +673,7 @@ async def webhook_handler(request: Request):
                 else:
                     respuesta = MENSAJE_MOROSIDAD_DERIVACION
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (aviso de morosidad): {respuesta}")
                 continue
 
@@ -671,7 +684,7 @@ async def webhook_handler(request: Request):
                 await guardar_mensaje(msg.telefono, "user", msg.texto)
                 respuesta = MENSAJE_AGRADECIMIENTO_ANIVERSARIO
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (saludo aniversario): {respuesta}")
                 continue
 
@@ -683,7 +696,7 @@ async def webhook_handler(request: Request):
                 await _enviar_cuentas_de_abono(msg.telefono, "intención de pago")
                 respuesta = MENSAJE_CUENTAS_ABONO_AUTOMATICO
                 await guardar_mensaje(msg.telefono, "assistant", respuesta)
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
                 logger.info(f"Respuesta a {msg.telefono} (intención de pago): cuentas de abono enviadas")
                 continue
 
@@ -721,7 +734,7 @@ async def webhook_handler(request: Request):
             if resultado.get("asesores"):
                 await _enviar_derivacion(msg.telefono, respuesta, resultado["asesores"])
             else:
-                await proveedor.enviar_mensaje(msg.telefono, respuesta)
+                await _enviar_texto(msg.telefono, respuesta)
 
             # Si Claude pidió mostrar los botones Sí/No (ej. para ofrecer
             # hablar con un asesor), los enviamos como mensaje aparte.
